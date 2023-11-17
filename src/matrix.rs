@@ -34,7 +34,7 @@ impl <T> MatBuilder<T> for RowMatBuilder<T>{
 }
 
 fn blah() {
-
+    print!("sdf");
 }
 
 #[cfg(test)]
