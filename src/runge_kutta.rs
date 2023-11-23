@@ -86,15 +86,11 @@ mod tests {
 
     use crate::runge_kutta::Rk4;
 
-    fn t_squared(t:f32, x:&f32) -> f32{
+    fn t_squared(t:f32, _x:&f32) -> f32{
         t * t
     }
 
     fn approx_equals(v1: f32, v2: f32, tolerance: f32) -> bool{
-        println!("{}",v1);
-        println!("{}",v2);
-        println!("{}",(v1 - v2).abs());
-        println!("{}",(v1 - v2).abs() < tolerance);
         (v1 - v2).abs() < tolerance
     }
 
