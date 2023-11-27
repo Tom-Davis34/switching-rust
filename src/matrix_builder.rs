@@ -10,6 +10,7 @@ where
     T: VectorSpace,
 {
     fn add(self: Self, row: usize, col: usize, ele: T) -> Self;
+    fn add_mut(&mut self, row: usize, col: usize, ele: T);
     fn build(self: Self) -> Result<CsrMatrix<T>, SparseFormatError>;
 }
 
@@ -79,6 +80,33 @@ where
             None => {
                 self.rows.insert(row, vec![ColEle { col: col, ele: ele }]);
                 return self;
+            }
+        }
+    }
+
+    fn add_mut(&mut self, row: usize, col: usize, ele: T) {
+        if ele.is_zero() {
+            return;
+        }
+
+        match self.rows.get_mut(row) {
+            Some(vec) => {
+                let opt_cell = vec.iter_mut().find(|val| val.col == col);
+
+                match opt_cell {
+                    Some(cell) => {
+                        cell.ele += ele;
+                        return;
+                    }
+                    None => {
+                        vec.push(ColEle { col: col, ele });
+                        return;
+                    }
+                }
+            }
+            None => {
+                self.rows.insert(row, vec![ColEle { col: col, ele: ele }]);
+                return;
             }
         }
     }
