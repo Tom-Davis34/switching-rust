@@ -3,12 +3,11 @@ use std::time::{Duration, Instant};
 use matrixcompare::Matrix;
 use nalgebra::{
     allocator::Allocator, DefaultAllocator, Dim, Dyn, OVector, Owned, RowOVector, RowVector,
-    Scalar, Vector,
+    Scalar, Vector, DimName, U10,
 };
 use num_traits::Zero;
 
-use crate::{butcher_tableau::ButcherTableau, ode::Foode, traits::VectorSpace};
-// use simba::scalar::{ClosedAdd, ClosedMul, ClosedNeg, ClosedSub, SubsetOf};
+use crate::{butcher_tableau::ButcherTableau, foode::Foode, traits::VectorSpace};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Stats {
@@ -128,87 +127,94 @@ where
     }
 }
 
-impl OdeSolve {
-    pub fn new(t_start: f32, t_end: f32, step_size: f32, foode: Foode) -> Self {
-        let num = ((t_end - t_start) / step_size).ceil() as usize;
+impl OdeSolve  {
+    // pub fn new(t_start: f32, t_end: f32, step_size: f32, foode: Foode) -> Self {
+    //     let num = ((t_end - t_start) / step_size).ceil() as usize;
 
-        return OdeSolve {
-            t_start: t_start,
-            t_end: t_end,
-            step_size: step_size,
-            step_num: num,
-            fun: Vec::with_capacity(num + 1),
-            state: SolveState::Initialized,
-            foode: foode,
-        };
-    }
+    //     return OdeSolve {
+    //         t_start: t_start,
+    //         t_end: t_end,
+    //         step_size: step_size,
+    //         step_num: num,
+    //         fun: Vec::with_capacity(num + 1),
+    //         state: SolveState::Initialized,
+    //         foode: foode,
+    //     };
+    // }
 
-    pub fn one_step_bt(
-        x0: RowVector<f32, Dyn, Owned<f32, Dyn>>,
-        t0: f32,
-        h: &f32,
-        bt: ButcherTableau,
-        foode: Foode,
-    ) -> RowVector<f32, Dyn, Owned<f32, Dyn>> {
-        let mut k = Vec::<RowVector<f32, Dyn, Owned<f32, Dyn>>>::new();
-        k.push(x0.clone());
+    // pub fn one_step_bt(
+    //     x0: OVector::<f32, Dyn>,
+    //     t0: f32,
+    //     h: &f32,
+    //     bt: ButcherTableau<4>,
+    //     foode: Foode<Dyn>,
+    //     &mut out: &mut OVector::<f32, Dyn>
+    // )  {
+    //     let mut k = Vec::<OVector::<f32, Dyn>>::with_capacity(bt.dim());
+    //     k.push(x0.clone());
 
-        for row_index in 0..bt.num - 1 {
-            let row = bt.a_mat.get_row(row_index).unwrap();
+    //     for row_index in 1..bt.dim() {
+    //         // unsafe { 
+    //         let mut x_arg = OVector::<f32, Dyn>::zeros(bt.dim());
 
-            // for col_index in row.col_indices() {
-            //     let cur_k = k.get(*col_index).unwrap();
+    //         let row = bt.row(row_index);
+    //         for a in row{
+    //             x_arg += k.get(row_index).unwrap() * *a;
+    //         }
 
-            // }
+    //         let mut new_k = OVector::<f32, Dyn>::zeros(bt.dim());
+    //         foode.f(t0 + h * bt.time_offsets[row_index], &(x0 + x_arg), &mut new_k);
+    //         k.push(new_k);
+    //         // }
+    //     }
 
-            row.col_indices()
-                .iter()
-                .map(|col_index| (col_index, row.get_entry(*col_index).unwrap().into()))
-                .map(| (col_index, factor)| )
-        }
+    //     return RowVector1;
+    // }
 
-        return *x0 + (k1 * 1.0 / 6.0 + k2 * 2.0 / 6.0 + k3 * 2.0 / 6.0 + k4 * 1.0 / 6.0) * (*h);
-    }
+    // pub fn run_bt(self: &mut Self, start: &X, bt: ButcherTableau<4>) -> Result<Stats, String> {
+    //     let start_time: Instant = Instant::now();
 
-    pub fn run_bt(self: &mut Self, start: &X, bt: ButcherTableau) -> Result<Stats, String> {
-        let start_time: Instant = Instant::now();
+    //     let mut current = start.to_owned();
+    //     let mut t = self.t_start;
+    //     let mut stats = Stats {
+    //         num_eval: 0,
+    //         accepted_steps: 0,
+    //         rejected_steps: 0,
+    //         time: Duration::ZERO,
+    //     };
 
-        let mut current = start.to_owned();
-        let mut t = self.t_start;
-        let mut stats = Stats {
-            num_eval: 0,
-            accepted_steps: 0,
-            rejected_steps: 0,
-            time: Duration::ZERO,
-        };
+    //     self.fun.push(FuncSample { t: t, x: current });
 
-        self.fun.push(FuncSample { t: t, x: current });
+    //     for n in 0..self.step_num {
+    //         t = self.step_size * n as f32;
 
-        for n in 0..self.step_num {
-            t = self.step_size * n as f32;
+    //         current = Rk4::<X>::one_step_rk4_fn(&current, t, &self.step_size, f);
 
-            current = Rk4::<X>::one_step_rk4_fn(&current, t, &self.step_size, f);
+    //         self.fun.push(FuncSample {
+    //             t: t + self.step_size,
+    //             x: current,
+    //         });
+    //         stats.num_eval += 4;
+    //         stats.accepted_steps += 1;
+    //     }
 
-            self.fun.push(FuncSample {
-                t: t + self.step_size,
-                x: current,
-            });
-            stats.num_eval += 4;
-            stats.accepted_steps += 1;
-        }
+    //     stats.time = start_time.elapsed();
 
-        stats.time = start_time.elapsed();
+    //     self.state = SolveState::Success(stats);
 
-        self.state = SolveState::Success(stats);
-
-        return Result::Ok(stats);
-    }
+    //     return Result::Ok(stats);
+    // }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use crate::runge_kutta::Rk4;
+    use std::time::Duration;
+    use crate::{matrix_builder::MatBuilder, foode::State};
+    use nalgebra::{OVector, Dyn, Vector1, DVector};
+    use ode_solvers::{Dopri5, dop_shared::Stats};
+
+    use crate::{runge_kutta::Rk4, foode::Foode, matrix_builder::CsrMatBuilder};
 
     fn t_squared(t: f32, _x: &f32) -> f32 {
         t * t
@@ -250,5 +256,13 @@ mod tests {
             println!("{:?}", sample);
             assert!(approx_equals(sample.x, func_integrated(sample.t), 0.001));
         });
+    }
+
+    // pub mat: CsrMatrix<f32>,
+    // pub forcing_fn: fn (f32) -> OVector<f32, Dyn>,
+    // pub stats: Stats,
+    // pub time: Duration
+    fn func_vec(t: f32) -> OVector::<f32, Dyn> {
+        return OVector::<f32, Dyn>::repeat( 1,t * t + 1.0);
     }
 }
