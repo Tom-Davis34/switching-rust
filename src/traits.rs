@@ -19,6 +19,7 @@ where
 
 {}
 
+
 impl VectorSpace for f32 {
     
 }
@@ -26,3 +27,4 @@ impl VectorSpace for f32 {
 impl VectorSpace for C32 {
     
 }
+

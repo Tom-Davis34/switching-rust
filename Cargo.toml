@@ -10,11 +10,13 @@ channel = "nightly"
 
 [dependencies]
 num-complex = "0.4"
-#nalgebra = { path = "../nalgebra" }
 nalgebra = "0.32.3"
 nalgebra-sparse = "0.9.0"
 approx = "0.5.1"
 num-traits = "0.2.17"
 matrixcompare = "0.3.0"
 once_cell = "1.18.0"
-ode_solvers ="0.3.7"
+simba = "0.8.1"
+thiserror = "1.0.50"
+chrono = "0.4.31"
+

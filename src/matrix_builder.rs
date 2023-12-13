@@ -1,13 +1,14 @@
-use nalgebra_sparse::{csr::CsrMatrix, CooMatrix, SparseFormatError};
 use nalgebra::Complex;
-use num_complex::{Complex64, Complex32};
-use std::collections::HashMap;
+use nalgebra_sparse::{csr::CsrMatrix, CooMatrix, SparseFormatError};
+use num_complex::{Complex32, Complex64};
+use num_traits::Zero;
+use std::{collections::HashMap, ops::AddAssign, panic};
 
-use crate::traits::VectorSpace;
+use nalgebra::Scalar;
 
 pub trait MatBuilder<T>
 where
-    T: VectorSpace,
+    T: Scalar + Zero + AddAssign,
 {
     fn add(self: Self, row: usize, col: usize, ele: T) -> Self;
     fn add_mut(&mut self, row: usize, col: usize, ele: T);
@@ -21,7 +22,7 @@ pub struct ColEle<T> {
 
 pub struct CsrMatBuilder<T>
 where
-    T: VectorSpace,
+    T: Scalar + Zero + AddAssign,
 {
     row_num: usize,
     col_num: usize,
@@ -36,7 +37,7 @@ pub struct Triple<T> {
 
 impl<T> CsrMatBuilder<T>
 where
-    T: VectorSpace,
+    T: Scalar + Zero + AddAssign,
 {
     pub fn new(row_num: usize, col_num: usize) -> Self {
         let mut rows = Vec::with_capacity(row_num);
@@ -55,9 +56,17 @@ where
 
 impl<T> MatBuilder<T> for CsrMatBuilder<T>
 where
-    T: VectorSpace,
+    T: Scalar + Zero + AddAssign,
 {
     fn add(mut self: Self, row: usize, col: usize, ele: T) -> Self {
+        if row >= self.row_num {
+            panic!("row is {} but is expected to be less than {}", row, self.row_num);
+        } 
+        if col >= self.col_num {
+            panic!("row is {} but is expected to be less than {}", col, self.col_num );
+        }
+
+
         if ele.is_zero() {
             return self;
         }
@@ -130,7 +139,7 @@ where
             .rows
             .iter()
             .flat_map(|row| row.iter())
-            .map(|col_ele| col_ele.ele)
+            .map(|col_ele| col_ele.ele.clone())
             .collect();
 
         // println!("row_offset {:?}", row_offset);
@@ -179,15 +188,22 @@ mod tests {
         Ok(())
     }
 
-    fn print_mat_as_dense<T>(mat: &CsrMatrix<T>) where T: Scalar + Zero  + std::fmt::Display + std::fmt::LowerExp {
+    fn print_mat_as_dense<T>(mat: &CsrMatrix<T>)
+    where
+        T: Scalar + Zero + std::fmt::Display + std::fmt::LowerExp,
+    {
         for row in mat.row_iter() {
             print!("[");
-            (0..mat.ncols()).for_each(|col_index| 
-                print!(" {:.2}", row.get_entry(col_index).map_or(T::zero(), |v| v.into_value())));
+            (0..mat.ncols()).for_each(|col_index| {
+                print!(
+                    " {:.2}",
+                    row.get_entry(col_index)
+                        .map_or(T::zero(), |v| v.into_value())
+                )
+            });
             print!(" ]");
             println!();
         }
-    
     }
 
     #[test]
@@ -227,7 +243,13 @@ mod tests {
     fn test_complex_matrices() {
         let row_offsets = vec![0, 3, 3, 5];
         let col_indices = vec![0, 1, 3, 1, 2];
-        let values:Vec<C32> = vec![C32::new(1.0, 0.0), C32::new(2.0, 0.0), C32::new(3.0, 0.0), C32::new(4.0, 0.0), C32::new(5.0, 0.0)];
+        let values: Vec<C32> = vec![
+            C32::new(1.0, 0.0),
+            C32::new(2.0, 0.0),
+            C32::new(3.0, 0.0),
+            C32::new(4.0, 0.0),
+            C32::new(5.0, 0.0),
+        ];
 
         // The dense representation of the CSR data, for comparison
         let _dense = Matrix3x4::new(1.0, 2.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 4.0, 5.0, 0.0);
@@ -236,14 +258,13 @@ mod tests {
         let expected_csr = CsrMatrix::try_from_csr_data(3, 4, row_offsets, col_indices, values)
             .expect("CSR data must conform to format specifications");
 
-        let mat_builder = 
-        CsrMatBuilder::<C32>::new(3, 4)
-        .add(0, 0, C32::new(1.0, 0.0))
-        .add(0, 1, C32::new(2.0, 0.0))
-        .add(0, 3, C32::new(1.0, 0.0))
-        .add(0, 3, C32::new(2.0, 0.0))
-        .add(2, 1, C32::new(4.0, 0.0))
-        .add(2, 2, C32::new(5.0, 0.0));
+        let mat_builder = CsrMatBuilder::<C32>::new(3, 4)
+            .add(0, 0, C32::new(1.0, 0.0))
+            .add(0, 1, C32::new(2.0, 0.0))
+            .add(0, 3, C32::new(1.0, 0.0))
+            .add(0, 3, C32::new(2.0, 0.0))
+            .add(2, 1, C32::new(4.0, 0.0))
+            .add(2, 2, C32::new(5.0, 0.0));
 
         let actual_csr = mat_builder.build().unwrap();
 
