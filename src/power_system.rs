@@ -36,7 +36,6 @@ pub struct Switch<'g>{
 }
 
 pub struct Circuit<'g> {
-    pub num: usize,
     pub fbus: &'g PsNode<'g>,
     pub tbus: &'g PsNode<'g>,
     pub admittance: C32,
@@ -53,14 +52,13 @@ fn split_whitespace(s: &str) -> Vec<&str>{
     s.split_whitespace().collect::<Vec<&str>>()
 }
 
-
 fn parse<T>(cells: &Vec<&str>, i: usize) -> T where T: FromStr, <T as FromStr>::Err: Debug{
     cells.get(i).unwrap().parse::<T>().unwrap()
 }
 
 impl<'g> Circuit<'g>{
     
-    fn from_str(s: &str, num: usize, nodes: &'g Vec<&'g PsNode>) -> Result<Self, ParseError> {
+    fn from_row(s: &str, nodes: &'g Vec<&'g PsNode>) -> Result<Self, ParseError> {
         let cells = split_whitespace(s);
 
 
@@ -68,7 +66,6 @@ impl<'g> Circuit<'g>{
         let tbus_index = parse::<usize>(&cells, 1);
 
         let cir = Circuit {
-            num: num,
             fbus: nodes.iter().find(|n| n.num == fbus_index).unwrap(),
             tbus: nodes.iter().find(|n| n.num == tbus_index).expect("Cannot find tbus"),
             admittance: C32::new(1.0, 0.0) / C32::new(parse::<f32>(&cells, 2), parse::<f32>(&cells, 3)),
@@ -77,6 +74,44 @@ impl<'g> Circuit<'g>{
 
         Ok(cir)
     }
+}
+
+impl<'g> Switch<'g>{
+    fn from_row(s: &str, nodes: &'g Vec<&'g PsNode>) -> Result<Self, ParseError> {
+        let cells = split_whitespace(s);
 
 
+        let fbus_index = parse::<usize>(&cells, 0);
+        let tbus_index = parse::<usize>(&cells, 1);
+        let is_cb = parse::<usize>(&cells, 3) == 1;
+
+        let sw = Switch {
+            fbus: nodes.iter().find(|n| n.num == fbus_index).unwrap(),
+            tbus: nodes.iter().find(|n| n.num == tbus_index).expect("Cannot find tbus"),
+            is_cb: is_cb
+        };
+
+        Ok(sw)
+    }
+}
+
+
+
+
+impl<'g> PsNode<'g>{
+    fn from_row(s: &str, ) -> Result<Self, ParseError> {
+        let cells = split_whitespace(s);
+
+        let fbus_index = parse::<usize>(&cells, 0);
+        let tbus_index = parse::<usize>(&cells, 1);
+        let is_cb = parse::<usize>(&cells, 3) == 1;
+
+        let sw = Switch {
+            fbus: nodes.iter().find(|n| n.num == fbus_index).unwrap(),
+            tbus: nodes.iter().find(|n| n.num == tbus_index).expect("Cannot find tbus"),
+            is_cb: is_cb
+        };
+
+        Ok(sw)
+    }
 }

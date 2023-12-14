@@ -1,0 +1,2 @@
+fbus	tbus	r	x	b	rateA	rateB	rateC	ratio	angle	status	angmin	angmax
+7	 8	0.012	0.042	 0.009	 148	 148	 148	 0.0	 0.0	 1 -30.0	 30.0
