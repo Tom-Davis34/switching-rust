@@ -1,15 +1,14 @@
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::str::FromStr;
 use std::fmt::Debug;
 
 use crate::traits::C32;
 mod file_parsing;
 
+type U = bool;
 
-pub trait FromRow: Sized {
-    type Err;
-    fn from_str(s: &str, num: usize) -> Result<Self, Self::Err>;
-}
-
+#[derive(Debug, Clone, Copy)]
 pub enum NodeType {
 	GND, PQ, PV, Sk 
 }
@@ -17,33 +16,45 @@ pub enum NodeType {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseError;
 
-pub struct PsNode<'g>{
+#[derive(Debug, Clone)]
+pub struct PsNode{
     pub num: usize,
     pub load: C32,
     pub gen: C32,
     pub n_type: NodeType,
-    pub line_charge: f32,
 
-    pub sws: Vec<&'g Switch<'g>>,
-    pub cirs: Vec<&'g Circuit<'g>>,
+    pub sws: Vec<Rc<Switch>>,
+    pub cirs: Vec<Rc<Circuit>>,
 }
 
-pub struct Switch<'g>{
+
+#[derive(Debug, Clone)]
+pub struct Switch{
     pub is_cb: bool,
-    pub fbus: &'g PsNode<'g>,
-    pub tbus: &'g PsNode<'g>,
+    pub fbus: Rc<PsNode>,
+    pub tbus: Rc<PsNode>,
 }
 
-pub struct Circuit<'g> {
-    pub fbus: &'g PsNode<'g>,
-    pub tbus: &'g PsNode<'g>,
+
+#[derive(Debug, Clone)]
+pub struct Circuit {
+    pub fbus: Rc<PsNode>,
+    pub tbus: Rc<PsNode>,
     pub admittance: C32,
     pub line_charge: f32
 }
 
-pub struct PowerSystem<'g> {
-    pub nodes: Vec<PsNode<'g>>,
-    pub sws: Vec<Switch<'g>>,
-    pub cirs: Vec<Circuit<'g>>,
+
+#[derive(Debug, Clone)]
+pub struct PowerSystem {
+    pub nodes: Vec<PsNode>,
+    pub sws: Vec<Switch>,
+    pub cirs: Vec<Circuit>,
+
+    pub start_u: Vec<U>,
+
+    // pub nodes_rc: Vec<Rc<PsNode>>,
+    // pub sws_rc: Vec<Rc<Switch>>,
+    // pub cirs_rc: Vec<Rc<Circuit>>,
 }
 
