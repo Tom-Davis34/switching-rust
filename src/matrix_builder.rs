@@ -66,7 +66,6 @@ where
             panic!("row is {} but is expected to be less than {}", col, self.col_num );
         }
 
-
         if ele.is_zero() {
             return self;
         }

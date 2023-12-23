@@ -3,7 +3,7 @@ use num_complex::{Complex64, Complex32, Complex};
 use num_traits::Zero;
 use std::{
     cmp::PartialOrd,
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign}
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign}, fmt
 };
 
 pub type C32 = Complex<f32>;
@@ -19,6 +19,14 @@ where
 
 {}
 
+trait Printable{
+    fn to_string(&self) -> String;
+}
+impl Printable for C32 {
+    fn to_string(&self) -> String{
+        format!("{}, {}i", self.re, self.im)
+    }
+}
 
 impl VectorSpace for f32 {
     

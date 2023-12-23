@@ -15,6 +15,7 @@ pub mod butcher_tableau;
 pub mod controller;
 pub mod rk4;
 pub mod power_system;
+pub mod steady_state_pf;
 
 use dop_shared::System;
 use foode::{State, Time};
