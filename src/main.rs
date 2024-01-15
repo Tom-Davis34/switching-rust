@@ -16,6 +16,7 @@ pub mod controller;
 pub mod rk4;
 pub mod power_system;
 pub mod steady_state_pf;
+pub mod a_star;
 
 use dop_shared::System;
 use foode::{State, Time};

@@ -1,18 +1,43 @@
 use std::fmt;
 use std::collections::HashMap;
+use std::iter::zip;
 use std::rc::Rc;
+use std::slice::Iter;
 use std::str::FromStr;
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::hash::Hash;
 
 use crate::traits::C32;
-mod file_parsing;
+use crate::power_system::EdgeData::Cir;
+use crate::power_system::EdgeData::Sw;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+mod file_parsing;
+pub mod plague_algo;
+
+
+type EdgeIndex = usize;
+type NodeIndex = usize;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum U{
     Open,
     Closed,
     DontCare
+}
+
+impl U {
+    pub fn hamming_dist(target_u: &Vec<U>, actual_u: &Vec<U>) -> f32{
+        zip(target_u.iter(), actual_u.iter())
+        .map(|(t_u, a_u)| {
+            match t_u {
+                U::Open => if a_u == &U::Open {1.0} else {0.0},
+                U::Closed => if a_u == &U::Closed {1.0} else {0.0},
+                U::DontCare => 0.0,
+            }
+        })
+        .sum()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -20,12 +45,31 @@ pub enum NodeType {
 	GND, PQ, PV, Sk 
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct DeltaU {
+    pub index: usize,
+    pub new_u: U,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct SigmAlg<T> {
+    to_super: Vec<Rc<T>>,
+    from_super: Vec<Vec<NodeIndex>>
+}
+
+
+// #[derive(Debug, PartialEq, Eq, Clone)]
+// pub enum NodeType {
+// 	GND, PQ, PV, Sk 
+// }
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseError;
 
 #[derive(PartialEq, Clone)]
 pub struct PsNode{
     pub num: usize,
+    pub index: NodeIndex,
     pub load: C32,
     pub gen: C32,
     pub n_type: NodeType,
@@ -42,10 +86,9 @@ pub struct Circuit {
     pub line_charge: f32,
 }
 
-
-
 #[derive(Clone)]
 pub struct Edge{
+    pub index: EdgeIndex,
     pub fbus: Rc<PsNode>,
     pub tbus: Rc<PsNode>,
     pub data: EdgeData,
@@ -57,16 +100,29 @@ pub enum EdgeData{
     Sw(Switch),
 }
 
+impl PartialEq for EdgeData{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Cir(_), Self::Cir(_)) => true,
+            (Self::Sw(_), Self::Sw(_)) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct EdgePsNode{
-    edge: Edge,
+    edge: Rc<Edge>,
     node: Rc<PsNode>
 }
 
 #[derive(Clone)]
 pub struct PowerSystem {
-    pub nodes: Vec<PsNode>,
-    pub edges: Vec<Edge>,
+    _nodes: Vec<PsNode>,
+    _edges: Vec<Edge>,
+
+    pub nodes: Vec<Rc<PsNode>>,
+    pub edges: Vec<Rc<Edge>>,
 
     pub start_u: Vec<U>,
 
@@ -77,23 +133,40 @@ impl PowerSystem {
     fn from_files(path: &str) -> PowerSystem {
         let file_contents = file_parsing::parse_ps(path);
 
-        let adjacent_node = file_contents.nodes.iter().map(|node| {
+        let nodes: Vec<Rc<PsNode>> = file_contents.nodes.iter().map(|n| Rc::from(n.clone())).collect();
+        let edges: Vec<Rc<Edge>> = file_contents.edges.iter().map(|e| Rc::from(e.clone())).collect();
+
+        let adjacent_node = nodes.iter().map(|node| {
             
-            let edge_map = file_contents.edges.iter()
+            let edge_map = edges.iter()
             .filter(|edge| edge.connected_to(node))
-            .map(|edge| EdgePsNode{ edge: edge.clone(), node: edge.other_node(node).unwrap() } )
+            .map(|edge| EdgePsNode{ edge: Rc::from(edge.clone()), node: edge.other_node(node).unwrap() } )
             .collect::<Vec<EdgePsNode>>();
 
-            (node.num, edge_map)
+            (node.index, edge_map)
         }).collect::<HashMap<usize, Vec<EdgePsNode>>>();
 
 
         PowerSystem { 
-            nodes: file_contents.nodes, 
-            edges: file_contents.edges, 
+            _nodes: file_contents.nodes, 
+            _edges: file_contents.edges, 
             start_u: file_contents.start_u, 
+            nodes: nodes,
+            edges: edges,
             adjacent_node: adjacent_node,
         }
+    }
+
+    fn get_neighbors(&self, node_index: &usize) -> &Vec<EdgePsNode> {
+        self.adjacent_node.get(node_index).unwrap()
+    }
+
+    fn nodes_iter(&self) -> Iter<'_, PsNode> {
+        self._nodes.iter()
+    }
+
+    fn edges_iter(&self) -> Iter<'_, Edge> {
+        self._edges.iter()
     }
 }
 
@@ -124,6 +197,20 @@ impl Edge {
             None
         }
     }
+
+    pub fn conducts(&self, u: &U) -> bool {
+        match self.data {
+            EdgeData::Cir(_) => false,
+            EdgeData::Sw(_) => u != &U::Open
+        } 
+    }
+
+    pub fn quarantines_super_node(&self, u: &Option<&U>) -> bool {
+        match self.data {
+            EdgeData::Cir(_) => true,
+            EdgeData::Sw(_) => u.unwrap() == &U::Open
+        } 
+    }
 }
 
 impl Debug for Edge {
@@ -143,7 +230,7 @@ impl Debug for PsNode {
 
 impl Debug for PowerSystem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PowerSystem").field("nodes", &self.nodes).field("edges", &self.edges).field("start_u", &self.start_u).finish()
+        f.debug_struct("PowerSystem").field("nodes", &self._nodes).field("edges", &self._edges).field("start_u", &self.start_u).finish()
     }
 }
 
@@ -178,9 +265,11 @@ mod tests {
     fn brb_gens(){
         let ps = PowerSystem::from_files(BRB_FILE_PATH);
 
+        println!("BRB {:#?}", ps);
+
         let expected_gens = HashMap::from([(27, C32{re: 45.0, im: 10.0})]);
 
-        ps.nodes.iter().enumerate().for_each(|(i, node)| {
+        ps._nodes.iter().enumerate().for_each(|(i, node)| {
             assert_eq!(expected_gens.get(&(i + 1)).unwrap_or(&C32{re:0.0, im:0.0}), &node.gen);
         })
     }
@@ -195,7 +284,7 @@ mod tests {
             (26, C32{re: 250.0, im: 80.0}),
             ]);
 
-            ps.nodes.iter().enumerate().for_each(|(i, node)| {
+            ps._nodes.iter().enumerate().for_each(|(i, node)| {
                 assert_eq!(expected_loads.get(&(i + 1)).unwrap_or(&C32{re:0.0, im:0.0}), &node.load);
             })
     }
