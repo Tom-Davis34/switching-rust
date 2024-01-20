@@ -1,0 +1,57 @@
+thread 'main' panicked at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/compiler/rustc_interface/src/util.rs:80:14:
+called `Result::unwrap()` on an `Err` value: Os { code: 11, kind: WouldBlock, message: "Resource temporarily unavailable" }
+stack backtrace:
+   0:     0x7f3e6e440ae1 - std::backtrace_rs::backtrace::libunwind::trace::h9c27ae506976e536
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/../../backtrace/src/backtrace/libunwind.rs:104:5
+   1:     0x7f3e6e440ae1 - std::backtrace_rs::backtrace::trace_unsynchronized::h075f04b1b991a5cc
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/../../backtrace/src/backtrace/mod.rs:66:5
+   2:     0x7f3e6e440ae1 - std::backtrace::Backtrace::create::h4728a36eb67883e1
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/backtrace.rs:332:13
+   3:     0x7f3e6e440a30 - std::backtrace::Backtrace::force_capture::h405e85d620af5c4c
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/backtrace.rs:313:9
+   4:     0x7f3e6b1285ac - std[23ee412b4092bb]::panicking::update_hook::<alloc[e1658fb7cef3bb05]::boxed::Box<rustc_driver_impl[891cbe23e357ec56]::install_ice_hook::{closure#0}>>::{closure#0}
+   5:     0x7f3e6e45bbe8 - <alloc::boxed::Box<F,A> as core::ops::function::Fn<Args>>::call::ha93d8a0e59d3a881
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/alloc/src/boxed.rs:2021:9
+   6:     0x7f3e6e45bbe8 - std::panicking::rust_panic_with_hook::hd1ee884b9495e206
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panicking.rs:783:13
+   7:     0x7f3e6e45b93e - std::panicking::begin_panic_handler::{{closure}}::h22fee33aab39e73c
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panicking.rs:657:13
+   8:     0x7f3e6e458ef6 - std::sys_common::backtrace::__rust_end_short_backtrace::h95b1d8aedb30bf62
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/sys_common/backtrace.rs:171:18
+   9:     0x7f3e6e45b6a2 - rust_begin_unwind
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panicking.rs:645:5
+  10:     0x7f3e6e4a8145 - core::panicking::panic_fmt::h89ea74967cf6ec7d
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/core/src/panicking.rs:72:14
+  11:     0x7f3e6e4a8843 - core::result::unwrap_failed::h9eda0008443e6647
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/core/src/result.rs:1649:5
+  12:     0x7f3e6cf4b097 - rustc_driver_impl[891cbe23e357ec56]::run_compiler
+  13:     0x7f3e6d338e0e - rustc_driver_impl[891cbe23e357ec56]::main
+  14:     0x55b76eea8b57 - rustc_main[2f6baaece91fa862]::main
+  15:     0x55b76eea8b43 - std[23ee412b4092bb]::sys_common::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  16:     0x55b76eea8b39 - <std[23ee412b4092bb]::rt::lang_start<()>::{closure#0} as core[2fd1802afb11265b]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  17:     0x7f3e6e43dbf7 - core::ops::function::impls::<impl core::ops::function::FnOnce<A> for &F>::call_once::he838593477cf3d56
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/core/src/ops/function.rs:284:13
+  18:     0x7f3e6e43dbf7 - std::panicking::try::do_call::hf375ab3ef037c3a9
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panicking.rs:552:40
+  19:     0x7f3e6e43dbf7 - std::panicking::try::h5759c1904f3cfc57
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panicking.rs:516:19
+  20:     0x7f3e6e43dbf7 - std::panic::catch_unwind::h0e7cba2af22fc5ae
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panic.rs:142:14
+  21:     0x7f3e6e43dbf7 - std::rt::lang_start_internal::{{closure}}::ha749366f8099448d
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/rt.rs:148:48
+  22:     0x7f3e6e43dbf7 - std::panicking::try::do_call::h6271b78f19fe22ea
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panicking.rs:552:40
+  23:     0x7f3e6e43dbf7 - std::panicking::try::h2c036ba7e20a071d
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panicking.rs:516:19
+  24:     0x7f3e6e43dbf7 - std::panic::catch_unwind::h18fcc85a13f834e1
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/panic.rs:142:14
+  25:     0x7f3e6e43dbf7 - std::rt::lang_start_internal::h6d3a0bc7fec7983d
+                               at /rustc/49b3924bd4a34d3cf9c37b74120fba78d9712ab8/library/std/src/rt.rs:148:20
+  26:     0x55b76eea8ba0 - std[23ee412b4092bb]::rt::lang_start::<()>
+  27:     0x7f3e67a67555 - __libc_start_main
+  28:     0x55b76eea8bcb - <unknown>
+  29:                0x0 - <unknown>
+
+
+rustc version: 1.76.0-nightly (49b3924bd 2023-11-27)
+platform: x86_64-unknown-linux-gnu

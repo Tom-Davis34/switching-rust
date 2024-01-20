@@ -6,7 +6,4 @@
     "./Cargo.toml"
 ],
 "rust-analyzer.showUnlinkedFileNotification": false,
-"files.associations": {
-    "queue": "cpp"
-}
 }

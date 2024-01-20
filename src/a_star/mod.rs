@@ -6,10 +6,11 @@ use self::a_star_node::AStarNode;
 
 pub mod a_star_node;
 mod steady_state_adapter;
+mod transient_adapter;
 
 const HAMMING_DIST_SCALE: f32 = 10.0;
 
-pub fn a_star(ps: &PowerSystem, target_du: Vec<U>) -> AStarNode {
+pub fn a_star(ps: &PowerSystem, target_du: Ve<U>) -> AStarNode {
 
     let mut heap = BinaryHeap::new();
 
@@ -31,40 +32,29 @@ pub fn a_star(ps: &PowerSystem, target_du: Vec<U>) -> AStarNode {
                 let u = create_u_from_node(ps, &current_node);
                 let res = steady_state_adapter::compute_ss_contri(ps, &u);
                 current_node.add_steady_state(res.0, res.1);
+
+                heap.push(current_node);
             },
-            a_star_node::NodeState::SteadyStateCalculated => todo!(),
-            a_star_node::NodeState::TransientCalculated => todo!(),
-            a_star_node::NodeState::Finished => todo!(),
+            a_star_node::NodeState::SteadyStateCalculated => {
+                let u = create_u_from_node(ps, &current_node);
+                let res = transient_adapter::compute_trans_contri(ps, &u);
+                current_node.add_transient(res.0, res.1);
+
+                heap.push(current_node);
+            },
+            a_star_node::NodeState::TransientCalculated => {
+                let u = create_u_from_node(ps, &current_node);
+
+                u.iter().enumerate().for_each(|(index, u)| {
+                    
+                    AStarNode::new(None, None, start_h);
+                })
+            },
+            a_star_node::NodeState::Finished =>{
+                panic!("Finished node added to the heap");
+            },
         }
     }
-    // dist[start] = 0;
-    // heap.push(State { cost: 0, position: start });
-
-    // // Examine the frontier with lower cost nodes first (min-heap)
-    // while let Some(State { cost, position }) = heap.pop() {
-    //     // Alternatively we could have continued to find all shortest paths
-    //     if position == goal { return Some(cost); }
-
-    //     // Important as we may have already found a better way
-    //     if cost > dist[position] { continue; }
-
-    //     // For each node we can reach, see if we can find a way with
-    //     // a lower cost going through this node
-    //     for edge in &adj_list[position] {
-    //         let next = State { cost: cost + edge.cost, position: edge.node };
-
-    //         // If so, add it to the frontier and continue
-    //         if next.cost < dist[next.position] {
-    //             heap.push(next);
-    //             // Relaxation, we have now found a better way
-    //             dist[next.position] = next.cost;
-    //         }
-    //     }
-    // }
-
-    // // Goal not reachable
-    // None
-
 }
 
 fn create_u_from_node(ps: &PowerSystem, node: &AStarNode) -> Vec<U> {
