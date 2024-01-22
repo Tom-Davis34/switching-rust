@@ -38,6 +38,14 @@ impl U {
         })
         .sum()
     }
+
+    pub fn not(&self) -> U{
+        match self {
+            U::Open => U::Closed,
+            U::Closed => U::Open,
+            U::DontCare => panic!(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

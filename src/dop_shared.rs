@@ -41,7 +41,7 @@ pub enum IntegrationError {
 }
 
 /// Contains some statistics of the integration.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Stats {
     pub num_eval: u32,
     pub accepted_steps: u32,
