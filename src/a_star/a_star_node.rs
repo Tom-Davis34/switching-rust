@@ -120,7 +120,7 @@ impl AStarNode{
 
         loop {
 
-            let parent = &last.borrow().parent;
+            let parent = last.borrow().parent.clone();
             match parent {
                 Some(par) => {
                     ret_val.push(par.clone());
@@ -130,7 +130,7 @@ impl AStarNode{
             }
         }
     }
-    
+
     pub fn get_delta_u(node: &HeapNode) -> Vec<DeltaU>{
 
         let mut ret_val: Vec<DeltaU> = vec![];
@@ -183,6 +183,12 @@ impl AStarNode{
             self.contribution.push(con.clone());
         });
     }
+}
+
+    
+pub fn node_child_visitor<F>(node: &HeapNode, f: F) where F: Fn(&Rc<RefCell<AStarNode>>){
+    node.borrow().children.iter().for_each(|val| f(val));
+        
 }
 
 
