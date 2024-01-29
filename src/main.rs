@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![warn(incomplete_features)]
-#![feature(generic_const_exprs)]
+// #![feature(generic_const_exprs)]
 
 pub mod matrix_builder;
 pub mod runge_kutta;

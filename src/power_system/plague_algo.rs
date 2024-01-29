@@ -1,11 +1,12 @@
 use std::{collections::HashSet, iter::{self, zip}, rc::Rc};
 
-use super::{U, PowerSystem, Edge, NodeIndex, EdgeIndex, Circuit, EdgeData, DeltaU};
+use super::{U, PowerSystem, Edge, NodeIndex, EdgeIndex, Circuit, EdgeData, DeltaU, Outage};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PowerFlowNode {
 
 }
+
 
 
 fn spread_infection<F>( node_index: NodeIndex, ps: &PowerSystem, visited_nodes: &mut Vec<bool>, stk: &mut Vec<NodeIndex>, edge_is_quarantine: F) where F: Fn(EdgeIndex) -> bool{
@@ -43,6 +44,10 @@ where F: Fn(EdgeIndex) -> bool{
     // println!("ret_val, {:?}", ret_val);
 
     ret_val
+}
+
+pub fn generate_outage(nodes: Vec<EdgeIndex>) -> Outage {
+    return Outage { in_outage: vec![], boundary: vec![], delta_u: vec![] };
 }
 
 pub fn generate_super_node_mapping(ps: &PowerSystem, delta_u: &Vec<DeltaU>) -> Vec<Vec<usize>> {

@@ -15,7 +15,6 @@ use crate::power_system::EdgeData::Sw;
 mod file_parsing;
 pub mod plague_algo;
 
-
 type EdgeIndex = usize;
 type NodeIndex = usize;
 
@@ -61,8 +60,15 @@ pub struct DeltaU {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SigmAlg<T> {
-    to_super: Vec<Rc<T>>,
-    from_super: Vec<Vec<NodeIndex>>
+    pub to_super: Vec<Rc<T>>,
+    pub from_super: Vec<Vec<NodeIndex>>
+}
+
+#[derive(Debug, Clone)]
+pub struct Outage {
+    in_outage: Vec<bool>,
+    boundary: Vec<Edge>,
+    delta_u: Vec<DeltaU>,
 }
 
 
@@ -175,6 +181,12 @@ impl PowerSystem {
 
     fn edges_iter(&self) -> Iter<'_, Edge> {
         self._edges.iter()
+    }
+
+    pub fn get_deage_by_name(&self, name: &str) -> Option<EdgeIndex> {
+
+        // self.edges_iter().enumerate()
+        None
     }
 }
 

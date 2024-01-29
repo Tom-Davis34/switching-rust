@@ -116,41 +116,18 @@ impl AStarNode{
 
     pub fn get_nodes(node: &HeapNode) -> Vec<HeapNode>{
         let mut ret_val: Vec<HeapNode> = vec![node.clone()];
-        let mut last = node.clone();
 
-        loop {
+        Self::node_parent_visitor(node, |n| ret_val.push(n.clone()));
 
-            let parent = last.borrow().parent.clone();
-            match parent {
-                Some(par) => {
-                    ret_val.push(par.clone());
-                    last = par.clone();
-                },
-                None => return ret_val.iter().rev().map(|rc| rc.clone()).collect(),
-            }
-        }
+        return ret_val.iter().rev().map(|nod| node.clone()).collect();
     }
 
     pub fn get_delta_u(node: &HeapNode) -> Vec<DeltaU>{
-
         let mut ret_val: Vec<DeltaU> = vec![];
-        match &node.borrow().delta_u {
-            Some(delta_u) =>  ret_val.push(delta_u.clone()),
-            None => {},
-        }
+        
+        Self::node_parent_visitor(node, |n| ret_val.push(n.borrow().delta_u.clone().unwrap()));
 
-        let mut last = node.clone();
-
-        loop {
-            let parent = last.borrow().parent.clone();
-            match parent {
-                Some(par) => {
-                    last = par.clone();
-                    ret_val.push(par.borrow().delta_u.clone().unwrap().clone());
-                },
-                None => return ret_val.iter().rev().map(|rc| rc.clone()).collect(),
-            }
-        }
+        ret_val
     }
 
     pub fn add_steady_state(&mut self,  contris: Vec<Contribution>, steady_state_results: Result<SteadyStateResults, SteadyStateError>) {
@@ -183,13 +160,29 @@ impl AStarNode{
             self.contribution.push(con.clone());
         });
     }
+
+    pub fn node_child_visitor<F>(node: &HeapNode, f: F) where F: Fn(&Rc<RefCell<AStarNode>>){
+        f(node);
+
+        node.borrow().children.iter().for_each(|val| Self::node_child_visitor(val, f));    
+    }
+
+    pub fn node_parent_visitor<F>(node: &HeapNode, f: F) where F: Fn(&Rc<RefCell<AStarNode>>){
+        f(node);
+
+        let parent = node.borrow().parent.clone();
+        match parent {
+            Some(par) => {
+                Self::node_parent_visitor(&par, f);
+            },
+            None => {},
+        }        
+    }
+
 }
 
     
-pub fn node_child_visitor<F>(node: &HeapNode, f: F) where F: Fn(&Rc<RefCell<AStarNode>>){
-    node.borrow().children.iter().for_each(|val| f(val));
-        
-}
+
 
 
 

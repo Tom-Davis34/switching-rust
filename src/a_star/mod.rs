@@ -42,14 +42,14 @@ fn handle_node(mut current_node: HeapNode, ps: &PowerSystem, target_du: &Vec<U>,
             let res = steady_state_adapter::compute_ss_contri(ps, &u);
             current_node.borrow_mut().add_steady_state(res.0, res.1);
         
-            heap.push(current_node);
+            heap.push(current_node.clone());
         },
         a_star_node::NodeState::SteadyStateCalculated => {
             let u = create_u_from_node(ps, &current_node);
             let res = transient_adapter::compute_transient_contri(ps, &u);
             current_node.borrow_mut().add_transient(res.0, res.1);
         
-            heap.push(current_node);
+            heap.push(current_node.clone());
         },
         a_star_node::NodeState::TransientCalculated => {
             let mut actual_u: Vec<U> = create_u_from_node(ps, &current_node);
@@ -64,7 +64,7 @@ fn handle_node(mut current_node: HeapNode, ps: &PowerSystem, target_du: &Vec<U>,
 
                 actual_u[index] = u.not(); 
                 let new_node = AStarNode::new(
-                    Some(current_node),
+                    Some(current_node.clone()),
                     Some(not_u.clone()),
                     HAMMING_DIST_SCALE * U::hamming_dist(&target_du, &actual_u),
                 );
