@@ -44,8 +44,39 @@ where F: Fn(EdgeIndex) -> bool{
     ret_val
 }
 
-pub fn generate_outage(nodes: Vec<EdgeIndex>) -> Outage {
+pub fn generate_outage(ps: &PowerSystem, edge_names: Vec<String>) -> Outage {
+
+    let edge_indices = edge_names.iter().map(|en| ps.get_edge_by_name())
+    
+
+    delta_u.iter().for_each(|du: &DeltaU| u[du.index] = du.new_u);
+
+    let mut visited_nodes = iter::repeat(false).take(ps.nodes.len()).collect::<Vec<bool>>();
+
+    let edge_is_quarantine = | index: EdgeIndex | {
+
+        // println!("index {:?}", index);
+        // println!("edge {:?}", ps.edges.get(index).unwrap());
+        // println!("quarantines_super_node {:?}", ps.edges.get(index).unwrap().quarantines_super_node(&u.get(index)));
+        ps.edges.get(index).unwrap().quarantines_super_node(&u.get(index))
+    };
+
+    ps.nodes_iter().enumerate().for_each(|(node_index, _node)| {
+        if visited_nodes[node_index] {
+            return;
+        }
+
+        let group = plague_algo(node_index, ps, &mut visited_nodes, edge_is_quarantine);
+        ret_val.push(group);
+
+    });
+
+    return ret_val;
+
+
     return Outage { in_outage: vec![], boundary: vec![], delta_u: vec![] };
+
+    
 }
 
 pub fn generate_super_node_mapping(ps: &PowerSystem, delta_u: &Vec<DeltaU>) -> Vec<Vec<usize>> {

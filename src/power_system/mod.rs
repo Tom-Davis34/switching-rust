@@ -140,6 +140,8 @@ pub struct PowerSystem {
 
     pub start_u: Vec<U>,
 
+    pub edges_names: HashMap<String, EdgeIndex>,
+
     pub adjacent_node: HashMap<usize, Vec<EdgePsNode>>,
 }
 
@@ -160,6 +162,28 @@ impl PowerSystem {
             (node.index, edge_map)
         }).collect::<HashMap<usize, Vec<EdgePsNode>>>();
 
+        let mut edges_names: HashMap<String, EdgeIndex> = HashMap::new();
+
+        edges.iter().filter(|ed| {
+            match &ed.data {
+                Cir(_) => false,
+                Sw(sw) => sw.is_cb,
+            }
+        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &num.to_string(), ed.index);});
+
+        edges.iter().filter(|ed| {
+            match &ed.data {
+                Cir(_) => false,
+                Sw(sw) => !sw.is_cb,
+            }
+        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &num.to_string(), ed.index);});
+
+        edges.iter().filter(|ed| {
+            match ed.data {
+                Cir(_) => true,
+                Sw(_) => false,
+            }
+        }).enumerate().for_each(|(num, ed)| {edges_names.insert( ed.data.get_type().to_string() + &num.to_string(), ed.index);});
 
         PowerSystem { 
             _nodes: file_contents.nodes, 
@@ -168,6 +192,7 @@ impl PowerSystem {
             nodes: nodes,
             edges: edges,
             adjacent_node: adjacent_node,
+            edges_names: edges_names,
         }
     }
 
@@ -183,10 +208,8 @@ impl PowerSystem {
         self._edges.iter()
     }
 
-    pub fn get_edge_by_name(&self, name: &str) -> Option<EdgeIndex> {
-        return self.edges_iter().enumerate().filter(|edge| {
-            edge.fmt()
-        }).colect();
+    pub fn get_edge_by_name(&self, name: &String) -> Option<&EdgeIndex> {
+        return self.edges_names.get(name);
     }
 }
 
@@ -231,8 +254,6 @@ impl Edge {
             EdgeData::Sw(_) => u.unwrap() == &U::Open
         } 
     }
-
-    pub fn 
 }
 
 impl Debug for Edge {
