@@ -7,8 +7,6 @@ pub struct PowerFlowNode {
 
 }
 
-
-
 fn spread_infection<F>( node_index: NodeIndex, ps: &PowerSystem, visited_nodes: &mut Vec<bool>, stk: &mut Vec<NodeIndex>, edge_is_quarantine: F) where F: Fn(EdgeIndex) -> bool{
     let neighbors = ps.get_neighbors(&node_index);
     

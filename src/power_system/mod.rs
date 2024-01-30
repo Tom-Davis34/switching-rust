@@ -183,10 +183,10 @@ impl PowerSystem {
         self._edges.iter()
     }
 
-    pub fn get_deage_by_name(&self, name: &str) -> Option<EdgeIndex> {
-
-        // self.edges_iter().enumerate()
-        None
+    pub fn get_edge_by_name(&self, name: &str) -> Option<EdgeIndex> {
+        return self.edges_iter().enumerate().filter(|edge| {
+            edge.fmt()
+        }).colect();
     }
 }
 
@@ -231,6 +231,8 @@ impl Edge {
             EdgeData::Sw(_) => u.unwrap() == &U::Open
         } 
     }
+
+    pub fn 
 }
 
 impl Debug for Edge {

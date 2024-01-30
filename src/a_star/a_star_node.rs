@@ -119,7 +119,7 @@ impl AStarNode{
 
         Self::node_parent_visitor(node, |n| ret_val.push(n.clone()));
 
-        return ret_val.iter().rev().map(|nod| node.clone()).collect();
+        return ret_val.iter().rev().map(|nod| nod.clone()).collect();
     }
 
     pub fn get_delta_u(node: &HeapNode) -> Vec<DeltaU>{
@@ -161,15 +161,15 @@ impl AStarNode{
         });
     }
 
-    pub fn node_child_visitor<F>(node: &HeapNode, f: F) where F: Fn(&Rc<RefCell<AStarNode>>){
+    pub fn node_child_visitor<F>(node: &HeapNode, f: &mut F) where F: FnMut(&Rc<RefCell<AStarNode>>){
         f(node);
 
         node.borrow().children.iter().for_each(|val| Self::node_child_visitor(val, f));    
     }
 
-    pub fn node_parent_visitor<F>(node: &HeapNode, f: F) where F: Fn(&Rc<RefCell<AStarNode>>){
-        f(node);
-
+    pub fn node_parent_visitor<F>(node: &HeapNode, mut f: F) where F: FnMut(Rc<RefCell<AStarNode>>){
+        f(node.clone());
+        
         let parent = node.borrow().parent.clone();
         match parent {
             Some(par) => {
