@@ -1,14 +1,14 @@
-use std::{collections::HashSet, iter::{self, zip}, rc::Rc};
+use std::{collections::{HashSet, HashMap}, iter::{self, zip}, rc::Rc};
 
-use super::{U, PowerSystem, Edge, NodeIndex, EdgeIndex, Circuit, EdgeData, DeltaU, Outage};
+use super::{U, PowerSystem, Edge, NodeIndex, EdgeIndex, Circuit, EdgeData, DeltaU, Outage, SigmAlg, EdgePsNode, PsNode, BasisEle};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PowerFlowNode {
 
 }
 
-fn spread_infection<F>( node_index: NodeIndex, ps: &PowerSystem, visited_nodes: &mut Vec<bool>, stk: &mut Vec<NodeIndex>, edge_is_quarantine: F) where F: Fn(EdgeIndex) -> bool{
-    let neighbors = ps.get_neighbors(&node_index);
+fn spread_infection<F>( node_index: NodeIndex, adjacent_node: &HashMap<usize, Vec<EdgePsNode>>, visited_nodes: &mut Vec<bool>, stk: &mut Vec<NodeIndex>, edge_is_quarantine: F) where F: Fn(EdgeIndex) -> bool{
+    let neighbors = adjacent_node.get(&node_index).unwrap();
     
     // println!("neighbors, {:?}", neighbors);
     
@@ -25,7 +25,7 @@ fn spread_infection<F>( node_index: NodeIndex, ps: &PowerSystem, visited_nodes: 
     // println!("stk, {:?}", stk);
 }
 
-pub fn plague_algo<F>(start_node_index: NodeIndex, ps: &PowerSystem, visited_nodes: &mut Vec<bool>, edge_is_quarantine: F) -> Vec<NodeIndex>
+pub fn plague_algo<F>(start_node_index: NodeIndex, adjacent_node: &HashMap<usize, Vec<EdgePsNode>>, visited_nodes: &mut Vec<bool>, edge_is_quarantine: F) -> Vec<NodeIndex>
 where F: Fn(EdgeIndex) -> bool{    
     let mut stk = vec![start_node_index];
     let mut ret_val = vec![];
@@ -34,50 +34,89 @@ where F: Fn(EdgeIndex) -> bool{
         let current_node = stk.pop().unwrap();
         ret_val.push(current_node);
 
-
-        spread_infection(current_node, ps, visited_nodes, &mut stk, &edge_is_quarantine);
+        spread_infection(current_node, adjacent_node, visited_nodes, &mut stk, &edge_is_quarantine);
         // println!("stk, {:?}", stk);
     }
 
     // println!("ret_val, {:?}", ret_val);
-
     ret_val
 }
 
-pub fn generate_outage(ps: &PowerSystem, edge_names: Vec<String>) -> Outage {
+pub fn generate_sigma_alg(adjacent_node: &HashMap<usize, Vec<EdgePsNode>>, edges: &Vec<Rc<Edge>>, nodes: &Vec<Rc<PsNode>>) -> SigmAlg {
 
-    let edge_indices = edge_names.iter().map(|en| ps.get_edge_by_name())
-    
-
-    delta_u.iter().for_each(|du: &DeltaU| u[du.index] = du.new_u);
-
-    let mut visited_nodes = iter::repeat(false).take(ps.nodes.len()).collect::<Vec<bool>>();
+    let mut basis = vec![];
+    let mut visited_nodes = iter::repeat(false).take(nodes.len()).collect::<Vec<bool>>();
 
     let edge_is_quarantine = | index: EdgeIndex | {
-
-        // println!("index {:?}", index);
-        // println!("edge {:?}", ps.edges.get(index).unwrap());
-        // println!("quarantines_super_node {:?}", ps.edges.get(index).unwrap().quarantines_super_node(&u.get(index)));
-        ps.edges.get(index).unwrap().quarantines_super_node(&u.get(index))
+        match edges.get(index).unwrap().data {
+            EdgeData::Cir(_) => false,
+            EdgeData::Sw(_) => true,
+        }
     };
 
-    ps.nodes_iter().enumerate().for_each(|(node_index, _node)| {
+    nodes.iter().enumerate().for_each(|(node_index, _node)| {
         if visited_nodes[node_index] {
             return;
         }
 
-        let group = plague_algo(node_index, ps, &mut visited_nodes, edge_is_quarantine);
-        ret_val.push(group);
+        let group = plague_algo(node_index, &adjacent_node, &mut visited_nodes, edge_is_quarantine);
+        basis.push(group);
 
     });
 
-    return ret_val;
+    let basis_eles = basis.iter().enumerate().map(|group| {
+        Rc::new(BasisEle {
+            id: group.0,
+            nodes: group.1.iter().map(|node_index| nodes[*node_index].clone()).collect::<Vec<Rc<PsNode>>>()
+        });
+    });
+
+    let to_b = iter::repeat(None).take(nodes.len()).collect::<Vec<Option<Rc<BasisEle>>>>();
+    basis_eles.for_each(|bi| {
+        bi.nodes.iter().for_each(|node| {
+            to_b[node.index].replace(bi.clone());
+        })
+    });
 
 
-    return Outage { in_outage: vec![], boundary: vec![], delta_u: vec![] };
+    SigmAlg {
+        to_basis: to_b.into_iter().map(|val| val.unwrap()).collect(),
+        basis: basis_eles.collect()
+    }
+}
+
+
+
+// pub fn generate_outage(ps: &PowerSystem, edge_names: Vec<String>) -> Outage {
+
+//     let edge_indices = edge_names.iter().map(|en| ps.get_edge_by_name())
+    
+
+//     delta_u.iter().for_each(|du: &DeltaU| u[du.index] = du.new_u);
+
+//     let mut visited_nodes = iter::repeat(false).take(ps.nodes.len()).collect::<Vec<bool>>();
+
+//     let edge_is_quarantine = | index: EdgeIndex | {
+//         ps.edges.get(index).unwrap().quarantines_super_node(&u.get(index))
+//     };
+
+//     ps.nodes_iter().enumerate().for_each(|(node_index, _node)| {
+//         if visited_nodes[node_index] {
+//             return;
+//         }
+
+//         let group = plague_algo(node_index, ps, &mut visited_nodes, edge_is_quarantine);
+//         ret_val.push(group);
+
+//     });
+
+//     return ret_val;
+
+
+//     return Outage { in_outage: vec![], boundary: vec![], delta_u: vec![] };
 
     
-}
+// }
 
 pub fn generate_super_node_mapping(ps: &PowerSystem, delta_u: &Vec<DeltaU>) -> Vec<Vec<usize>> {
     let mut u = ps.start_u.clone();
@@ -100,7 +139,7 @@ pub fn generate_super_node_mapping(ps: &PowerSystem, delta_u: &Vec<DeltaU>) -> V
             return;
         }
 
-        let group = plague_algo(node_index, ps, &mut visited_nodes, edge_is_quarantine);
+        let group = plague_algo(node_index, &ps.adjacent_node, &mut visited_nodes, edge_is_quarantine);
         ret_val.push(group);
 
     });
@@ -155,6 +194,16 @@ mod tests {
         println!("{:?}", res);
 
         assert_eq!(res.len(), ps.nodes.len());
+    }
+
+    #[test]
+    fn sigma_alg(){
+        let ps = PowerSystem::from_files(BRB_FILE_PATH);
+
+        let sig: SigmAlg = generate_sigma_alg(&ps.adjacent_node, &ps.edges, &ps.nodes);
+
+        println!("{:?}", sig);    
+        
     }
 
 }

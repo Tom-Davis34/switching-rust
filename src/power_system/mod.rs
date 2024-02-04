@@ -58,15 +58,22 @@ pub struct DeltaU {
     pub new_u: U,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct SigmAlg<T> {
-    pub to_super: Vec<Rc<T>>,
-    pub from_super: Vec<Vec<NodeIndex>>
+#[derive(Debug, Clone)]
+pub struct SigmAlg {
+    pub to_basis: Vec<Rc<BasisEle>>,
+    pub basis: Vec<Rc<BasisEle>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BasisEle {
+    id: usize,
+    nodes: Vec<Rc<PsNode>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Outage {
     in_outage: Vec<bool>,
+    basis: Vec<Rc<BasisEle>>,
     boundary: Vec<Edge>,
     delta_u: Vec<DeltaU>,
 }
