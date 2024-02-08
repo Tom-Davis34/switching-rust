@@ -12,6 +12,8 @@ use crate::traits::C32;
 use crate::power_system::EdgeData::Cir;
 use crate::power_system::EdgeData::Sw;
 
+use self::plague_algo::generate_sigma_alg;
+
 mod file_parsing;
 pub mod plague_algo;
 
@@ -74,15 +76,9 @@ pub struct BasisEle {
 pub struct Outage {
     in_outage: Vec<bool>,
     basis: Vec<Rc<BasisEle>>,
-    boundary: Vec<Edge>,
+    boundary: Vec<Rc<Edge>>,
     delta_u: Vec<DeltaU>,
 }
-
-
-// #[derive(Debug, PartialEq, Eq, Clone)]
-// pub enum NodeType {
-// 	GND, PQ, PV, Sk 
-// }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseError;
@@ -149,6 +145,8 @@ pub struct PowerSystem {
 
     pub edges_names: HashMap<String, EdgeIndex>,
 
+    pub sigma: SigmAlg,
+
     pub adjacent_node: HashMap<usize, Vec<EdgePsNode>>,
 }
 
@@ -192,6 +190,8 @@ impl PowerSystem {
             }
         }).enumerate().for_each(|(num, ed)| {edges_names.insert( ed.data.get_type().to_string() + &num.to_string(), ed.index);});
 
+        let sigma = generate_sigma_alg(&adjacent_node, &edges, &nodes);
+
         PowerSystem { 
             _nodes: file_contents.nodes, 
             _edges: file_contents.edges, 
@@ -200,6 +200,7 @@ impl PowerSystem {
             edges: edges,
             adjacent_node: adjacent_node,
             edges_names: edges_names,
+            sigma,
         }
     }
 
@@ -250,7 +251,7 @@ impl Edge {
 
     pub fn conducts(&self, u: &U) -> bool {
         match self.data {
-            EdgeData::Cir(_) => false,
+            EdgeData::Cir(_) => true,
             EdgeData::Sw(_) => u != &U::Open
         } 
     }

@@ -12,7 +12,7 @@ pub enum SteadyStateError {
 #[derive(Debug, PartialEq, Clone)]
 pub struct SteadyStateResults {
     pub duration: Duration,
-    pub super_node_map: Option<SigmAlg<f32>>,
+    // pub super_node_map: Option<SigmAlg<f32>>,
     pub result: Vec<Rc<PowerFlowNode>>,
 }
 

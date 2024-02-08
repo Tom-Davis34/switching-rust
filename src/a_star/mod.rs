@@ -23,7 +23,7 @@ pub fn a_star(ps: &PowerSystem, target_du: Vec<U>) -> HeapNode {
     heap.push(root);
 
     loop {
-        let mut current_node = heap.pop().unwrap();
+        let current_node = heap.pop().unwrap();
 
         println!("current_node {:#?}", current_node);
 
@@ -35,7 +35,7 @@ pub fn a_star(ps: &PowerSystem, target_du: Vec<U>) -> HeapNode {
     }
 }
 
-fn handle_node(mut current_node: HeapNode, ps: &PowerSystem, target_du: &Vec<U>, heap: &mut BinaryHeap<HeapNode>) {
+fn handle_node(current_node: HeapNode, ps: &PowerSystem, target_du: &Vec<U>, heap: &mut BinaryHeap<HeapNode>) {
     match current_node.borrow().state{
         a_star_node::NodeState::Init => {
             let u = create_u_from_node(ps, &current_node);

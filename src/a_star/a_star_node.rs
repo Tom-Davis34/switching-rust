@@ -81,7 +81,7 @@ impl Ord for AStarNode {
         std::cmp::min_by(self, other, Ord::cmp)
     }
 
-    fn clamp(self, min: Self, max: Self) -> Self
+    fn clamp(self, _min: Self, _max: Self) -> Self
     where
         Self: Sized,
         Self: PartialOrd,
