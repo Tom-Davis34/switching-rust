@@ -271,5 +271,19 @@ mod tests {
             sig.basis.iter().flat_map(|b| b.nodes.iter()).count(),
             ps.nodes.len()
         );
+
+
+        ps.nodes_iter().for_each(|n|{
+            assert!(sig.to_basis[n.index].nodes.iter().find(|n2| n2.index == n.index).is_some());
+        });
+
+        let basis26 = sig.basis.iter().find(|b| b.nodes.iter().find(|n| n.num == 26).is_some()).unwrap();
+
+        assert!(basis26.nodes.iter().find(|n| n.num == 26).is_some());
+        assert!(basis26.nodes.iter().find(|n| n.num == 28).is_some());
+        assert!(basis26.nodes.iter().find(|n| n.num == 20).is_some());
+        assert!(basis26.nodes.iter().find(|n| n.num == 30).is_some());
+        assert!(basis26.nodes.iter().find(|n| n.num == 2).is_some());
+        assert!(basis26.nodes.len() == 5);
     }
 }
