@@ -27,13 +27,20 @@ pub enum U{
     DontCare
 }
 
+impl fmt::Display for U {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+
 impl U {
     pub fn hamming_dist(target_u: &Vec<U>, actual_u: &Vec<U>) -> f32{
         zip(target_u.iter(), actual_u.iter())
         .map(|(t_u, a_u)| {
             match t_u {
-                U::Open => if a_u == &U::Open {1.0} else {0.0},
-                U::Closed => if a_u == &U::Closed {1.0} else {0.0},
+                U::Open => if a_u == &U::Closed {1.0} else {0.0},
+                U::Closed => if a_u == &U::Open {1.0} else {0.0},
                 U::DontCare => 0.0,
             }
         })
@@ -60,6 +67,12 @@ pub struct DeltaU {
     pub new_u: U,
 }
 
+impl Display for DeltaU {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.new_u)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SigmAlg {
     pub to_basis: Vec<Rc<BasisEle>>,
@@ -74,10 +87,12 @@ pub struct BasisEle {
 
 #[derive(Debug, Clone)]
 pub struct Outage {
-    in_outage: Vec<bool>,
-    basis: Vec<Rc<BasisEle>>,
-    boundary: Vec<Rc<Edge>>,
-    delta_u: Vec<DeltaU>,
+    pub in_outage: Vec<bool>,
+    pub basis: Vec<Rc<BasisEle>>,
+    pub edges_boundary: Vec<Edge>,
+    pub edges_inside: Vec<Edge>,
+    pub delta_u: Vec<DeltaU>,
+    pub target_u: Vec<U>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -106,6 +121,7 @@ pub struct Circuit {
 #[derive(Clone)]
 pub struct Edge{
     pub index: EdgeIndex,
+    pub name: String,
     pub fbus: Rc<PsNode>,
     pub tbus: Rc<PsNode>,
     pub data: EdgeData,
@@ -137,13 +153,14 @@ pub struct EdgePsNode{
 pub struct PowerSystem {
     _nodes: Vec<PsNode>,
     _edges: Vec<Edge>,
+    _switches: Vec<Edge>,
 
     pub nodes: Vec<Rc<PsNode>>,
     pub edges: Vec<Rc<Edge>>,
 
     pub start_u: Vec<U>,
 
-    pub edges_names: HashMap<String, EdgeIndex>,
+    pub edges_names: HashMap<String, Rc<Edge>>,
 
     pub sigma: SigmAlg,
 
@@ -151,7 +168,7 @@ pub struct PowerSystem {
 }
 
 impl PowerSystem {
-    fn from_files(path: &str) -> PowerSystem {
+    pub fn from_files(path: &str) -> PowerSystem {
         let file_contents = file_parsing::parse_ps(path);
 
         let nodes: Vec<Rc<PsNode>> = file_contents.nodes.iter().map(|n| Rc::from(n.clone())).collect();
@@ -167,34 +184,38 @@ impl PowerSystem {
             (node.index, edge_map)
         }).collect::<HashMap<usize, Vec<EdgePsNode>>>();
 
-        let mut edges_names: HashMap<String, EdgeIndex> = HashMap::new();
+        let mut edges_names: HashMap<String, Rc<Edge>> = HashMap::new();
 
         edges.iter().filter(|ed| {
             match &ed.data {
                 Cir(_) => false,
                 Sw(sw) => sw.is_cb,
             }
-        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &num.to_string(), ed.index);});
+        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &(num + 1).to_string(), ed.clone());});
 
         edges.iter().filter(|ed| {
             match &ed.data {
                 Cir(_) => false,
                 Sw(sw) => !sw.is_cb,
             }
-        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &num.to_string(), ed.index);});
+        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &(num + 1).to_string(), ed.clone());});
 
         edges.iter().filter(|ed| {
             match ed.data {
                 Cir(_) => true,
                 Sw(_) => false,
             }
-        }).enumerate().for_each(|(num, ed)| {edges_names.insert( ed.data.get_type().to_string() + &num.to_string(), ed.index);});
+        }).enumerate().for_each(|(num, ed)| {edges_names.insert( ed.data.get_type().to_string() + &(num + 1).to_string(), ed.clone());});
+
+
+        let switches = file_contents.edges.iter().filter(Edge::is_switch).map(Edge::clone).collect::<Vec<Edge>>();
 
         let sigma = generate_sigma_alg(&adjacent_node, &edges, &nodes);
 
         PowerSystem { 
             _nodes: file_contents.nodes, 
             _edges: file_contents.edges, 
+            _switches: switches, 
             start_u: file_contents.start_u, 
             nodes: nodes,
             edges: edges,
@@ -210,13 +231,17 @@ impl PowerSystem {
 
     fn nodes_iter(&self) -> Iter<'_, PsNode> {
         self._nodes.iter()
+    } 
+
+    fn switch_iter(&self) -> Iter<'_, Edge> {
+        self._switches.iter()
     }
 
     fn edges_iter(&self) -> Iter<'_, Edge> {
         self._edges.iter()
     }
 
-    pub fn get_edge_by_name(&self, name: &String) -> Option<&EdgeIndex> {
+    pub fn get_edge_by_name(&self, name: &String) -> Option<&Rc<Edge>> {
         return self.edges_names.get(name);
     }
 }
@@ -255,6 +280,14 @@ impl Edge {
             EdgeData::Sw(_) => u != &U::Open
         } 
     }
+
+    pub fn is_switch(self: &&Self) -> bool {
+        match self.data {
+            EdgeData::Sw(_) => true,
+            EdgeData::Cir(_) => false,
+        }
+    }
+
 
     pub fn quarantines_super_node(&self, u: &Option<&U>) -> bool {
         match self.data {

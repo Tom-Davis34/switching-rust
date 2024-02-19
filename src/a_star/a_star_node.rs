@@ -1,16 +1,25 @@
-use std::{rc::Rc, cmp::Ordering, ops::{DerefMut, Deref}, cell::RefCell, borrow::BorrowMut};
+use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
+    cmp::Ordering,
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
 
-use crate::power_system::{DeltaU, SigmAlg, plague_algo::PowerFlowNode, U};
+use crate::power_system::{plague_algo::PowerFlowNode, DeltaU, PowerSystem, SigmAlg, U};
 
-use super::{steady_state_adapter::{SteadyStateResults, SteadyStateError}, transient_adapter::{TransientError, TransientResults}};
+use super::{
+    steady_state_adapter::{SteadyStateContri, SteadyStateError, SteadyStateResults},
+    transient_adapter::{TransientAdapter, TransientError, TransientResults},
+};
 
 pub type HeapNode = Rc<RefCell<AStarNode>>;
 
-#[derive(Debug, PartialEq,Clone)]
-pub enum ContributionType{
+#[derive(Debug, PartialEq, Clone)]
+pub enum ContributionType {
     Other,
     SteadyState,
-    Transient
+    Transient,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -21,43 +30,29 @@ pub struct Contribution {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum NodeState{
-	Init,
-	SteadyStateCalculated,
-	TransientCalculated,
-	Finished 
+pub enum NodeState {
+    Init,
+    SteadyStateCalculated,
+    TransientCalculated,
+    Finished,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct AStarNode {
+    pub display: String,
     pub state: NodeState,
     pub parent: Option<HeapNode>,
     pub children: Vec<HeapNode>,
     pub delta_u: Option<DeltaU>,
     pub h: f32,
-    pub steady_state_results: Option<Result<SteadyStateResults, SteadyStateError>>,
-    pub transient_results: Option<Result<TransientResults, TransientError>>,
+    pub steady_state_contri: Option<SteadyStateContri>,
+    pub transient_contri: Option<TransientAdapter>,
     pub contribution: Vec<Contribution>,
     pub depth: usize,
     pub objective: f32,
 }
-//  impl Deref for AStarNode {
 
-
-//      fn deref(&self) -> &Self {
-//          self
-//      }
-// }
-
-// impl DerefMut for AStarNode {
-//     fn deref_mut(&mut self) -> &mut Self {
-//         self
-//     }
-// }
-
-impl Eq for AStarNode {
-
-}
+impl Eq for AStarNode {}
 
 impl Ord for AStarNode {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -88,7 +83,6 @@ impl Ord for AStarNode {
     {
         todo!()
     }
-
 }
 
 // `PartialOrd` needs to be implemented as well.
@@ -98,23 +92,42 @@ impl PartialOrd for AStarNode {
     }
 }
 
-impl AStarNode{
-    pub fn new(parent: Option<HeapNode>, delta_u: Option<DeltaU>, h: f32) -> Self {
+impl AStarNode {
+    fn create_display(delta_u: &Option<DeltaU>, ps: &PowerSystem) -> String {
+        match delta_u {
+            Some(u) => {
+                format!("{:?} {}", u.new_u, ps.edges[u.index].name)
+            }
+            None => "START".to_string(),
+        }
+    }
+
+    pub fn new(
+        parent: Option<HeapNode>,
+        delta_u: Option<DeltaU>,
+        h: f32,
+        ps: &PowerSystem,
+    ) -> Self {
         return AStarNode {
+            display: Self::create_display(&delta_u, ps),
             state: NodeState::Init,
             parent: parent.clone(),
             children: vec![],
             delta_u,
             h,
-            steady_state_results: None,
-            transient_results: None,
-            contribution: vec![Contribution{contri_type:ContributionType::Other,reason:String::from("H"),amount:h }],
+            steady_state_contri: None,
+            transient_contri: None,
+            contribution: vec![Contribution {
+                contri_type: ContributionType::Other,
+                reason: String::from("H"),
+                amount: h,
+            }],
             depth: parent.map_or(0, |par| par.borrow().depth + 1),
             objective: h,
         };
     }
 
-    pub fn get_nodes(node: &HeapNode) -> Vec<HeapNode>{
+    pub fn get_nodes(node: &HeapNode) -> Vec<HeapNode> {
         let mut ret_val: Vec<HeapNode> = vec![node.clone()];
 
         Self::node_parent_visitor(node, |n| ret_val.push(n.clone()));
@@ -122,68 +135,72 @@ impl AStarNode{
         return ret_val.iter().rev().map(|nod| nod.clone()).collect();
     }
 
-    pub fn get_delta_u(node: &HeapNode) -> Vec<DeltaU>{
+    pub fn get_delta_u(node: &HeapNode) -> Vec<DeltaU> {
         let mut ret_val: Vec<DeltaU> = vec![];
-        
-        Self::node_parent_visitor(node, |n| ret_val.push(n.borrow().delta_u.clone().unwrap()));
+
+        Self::node_parent_visitor(node, |n| match &n.borrow().delta_u {
+            Some(du) => ret_val.push(du.clone()),
+            None => {}
+        });
 
         ret_val
     }
 
-    pub fn add_steady_state(&mut self,  contris: Vec<Contribution>, steady_state_results: Result<SteadyStateResults, SteadyStateError>) {
+    pub fn add_steady_state(&mut self, contri: SteadyStateContri) {
         assert!(self.state == NodeState::Init);
-        self.steady_state_results = Some(steady_state_results);
 
-        contris.iter().for_each(|con| {
+        contri.contri.iter().for_each(|con| {
             assert!(con.contri_type == ContributionType::SteadyState);
             self.contribution.push(con.clone());
         });
 
+        self.steady_state_contri = Some(contri);
         self.state = NodeState::SteadyStateCalculated;
     }
 
-    pub fn add_transient(&mut self, contris: Vec<Contribution>, transient_results: Result<TransientResults, TransientError>) {
+    pub fn add_transient(&mut self, contris: TransientAdapter) {
         assert!(self.state == NodeState::SteadyStateCalculated);
-        self.transient_results = Some(transient_results);
 
-        contris.iter().for_each(|con| {
+        contris.contri.iter().for_each(|con| {
             assert!(con.contri_type == ContributionType::Transient);
             self.contribution.push(con.clone());
         });
 
+        self.transient_contri = Some(contris);
         self.state = NodeState::TransientCalculated;
     }
 
-    fn add_contributions(&mut self, contributions: Vec<Contribution>){
+    fn add_contributions(&mut self, contributions: Vec<Contribution>) {
         contributions.iter().for_each(|con| {
             assert!(con.contri_type == ContributionType::SteadyState);
             self.contribution.push(con.clone());
         });
     }
 
-    pub fn node_child_visitor<F>(node: &HeapNode, f: &mut F) where F: FnMut(&Rc<RefCell<AStarNode>>){
+    pub fn node_child_visitor<F>(node: &HeapNode, f: &mut F)
+    where
+        F: FnMut(&Rc<RefCell<AStarNode>>),
+    {
         f(node);
 
-        node.borrow().children.iter().for_each(|val| Self::node_child_visitor(val, f));    
+        node.borrow()
+            .children
+            .iter()
+            .for_each(|val| Self::node_child_visitor(val, f));
     }
 
-    pub fn node_parent_visitor<F>(node: &HeapNode, mut f: F) where F: FnMut(Rc<RefCell<AStarNode>>){
+    pub fn node_parent_visitor<F>(node: &HeapNode, mut f: F)
+    where
+        F: FnMut(Rc<RefCell<AStarNode>>),
+    {
         f(node.clone());
-        
+
         let parent = node.borrow().parent.clone();
         match parent {
             Some(par) => {
                 Self::node_parent_visitor(&par, f);
-            },
-            None => {},
-        }        
+            }
+            None => {}
+        }
     }
-
 }
-
-    
-
-
-
-
-

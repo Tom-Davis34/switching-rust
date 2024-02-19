@@ -31,8 +31,8 @@ pub fn parse_ps(path: &str) -> FileParseResults {
     let mut cicuits: Vec<Edge> = cicuits_strs
         .iter()
         .enumerate()
-        .map(|s| (s.0 + switches.len(), s.1) )
-        .map(|s| Edge::from_circuit_row(s, &ps_nodes_rc))
+        .map(|s| (s.0, s.1) )
+        .map(|s| Edge::from_circuit_row(s, &ps_nodes_rc, switches.len()))
         .collect();
     // let cicuits_rc: Vec<Rc<Circuit>> = cicuits.iter().map(|f| Rc::new(f.clone())).collect();
 
@@ -120,7 +120,7 @@ impl Gen {
 }
 
 impl Edge {
-    fn from_circuit_row(s: (usize, &String), nodes: &Vec<Rc<PsNode>>) -> Self {
+    fn from_circuit_row(s: (usize, &String), nodes: &Vec<Rc<PsNode>>, swicth_num: usize) -> Self {
         let cells = split_whitespace(s.1);
 
         let fbus_num = parse::<usize>(&cells, 0);
@@ -135,7 +135,8 @@ impl Edge {
         };
 
         Edge {
-            index: s.0,
+            index: s.0 + swicth_num,
+            name: format!("Cir{:?}", s.0),
             fbus: fbus,
             tbus: tbus,
             data: EdgeData::Cir(cir),
@@ -154,8 +155,14 @@ impl Edge {
 
         let sw = Switch { is_cb: is_cb };
 
+        
+
         Edge {
             index: s.0,
+            name: match is_cb {
+                true => format!("CB{:?}", s.0),
+                false => format!("Dis{:?}", s.0),
+            },
             fbus: fbus,
             tbus: tbus,
             data: EdgeData::Sw(sw),

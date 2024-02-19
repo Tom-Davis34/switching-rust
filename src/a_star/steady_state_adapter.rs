@@ -1,4 +1,7 @@
-use std::{error::Error, rc::Rc, time::Duration};
+use std::{error::Error, rc::Rc};
+
+use chrono::Duration;
+use chrono::Utc;
 
 use crate::a_star::a_star_node::Contribution;
 use crate::a_star::a_star_node::ContributionType;
@@ -11,22 +14,27 @@ pub enum SteadyStateError {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct SteadyStateResults {
-    pub duration: Duration,
-    // pub super_node_map: Option<SigmAlg<f32>>,
     pub result: Vec<Rc<PowerFlowNode>>,
 }
 
-pub fn compute_ss_contri(
-    ps: &PowerSystem,
-    u: &Vec<U>,
-) -> (
-    Vec<Contribution>,
-    Result<SteadyStateResults, SteadyStateError>,
-) {
+#[derive(Debug, PartialEq, Clone)]
+pub struct SteadyStateContri {
+    pub duration: Duration,
+    pub contri: Vec<Contribution>,
+    pub results: Result<SteadyStateResults, SteadyStateError>,
+}
+
+pub fn compute_ss_contri(ps: &PowerSystem, u: &Vec<U>) -> SteadyStateContri {
+    let start_time = Utc::now();
     let results = perform_steady_state(ps, u);
     let contri = compute_contri(ps, &results);
+    let duration = Utc::now().signed_duration_since(start_time);
 
-    return (contri, results);
+    return SteadyStateContri {
+        duration,
+        contri,
+        results,
+    };
 }
 
 fn compute_contri(

@@ -1,4 +1,8 @@
-use std::{error::Error, rc::Rc, time::Duration};
+use std::fmt::Display;
+use std::{error::Error, rc::Rc};
+
+use chrono::Duration;
+use chrono::Utc;
 
 use crate::a_star::a_star_node::Contribution;
 use crate::a_star::a_star_node::ContributionType;
@@ -12,22 +16,32 @@ pub enum TransientError {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TransientResults {
-    stats: Stats,
-    t: Vec<f64>,
-    out: Vec<Vec<f64>>,
+    pub stats: Stats,
+    pub t: Vec<f64>,
+    pub out: Vec<Vec<f64>>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct TransientAdapter {
+    pub duration: Duration,
+    pub contri: Vec<Contribution>,
+    pub result: Result<TransientResults, TransientError>,
 }
 
 pub fn compute_transient_contri(
     ps: &PowerSystem,
     u: &Vec<U>,
-) -> (
-    Vec<Contribution>,
-    Result<TransientResults, TransientError>,
-) {
-    let results = perform_transient(ps, u);
-    let contri = compute_contri(ps, &results);
+) -> TransientAdapter {
+    let start_time = Utc::now();
+    let result = perform_transient(ps, u);
+    let contri = compute_contri(ps, &result);
+    let duration = Utc::now().signed_duration_since(start_time);
 
-    return (contri, results);
+    return TransientAdapter {
+        duration,
+        contri,
+        result,
+    };
 }
 
 fn compute_contri(

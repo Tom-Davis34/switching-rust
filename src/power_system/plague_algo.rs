@@ -1,5 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
+    error::Error,
+    fmt::Display,
     iter::{self, zip},
     rc::Rc,
 };
@@ -8,6 +10,35 @@ use super::{
     BasisEle, Circuit, DeltaU, Edge, EdgeData, EdgeIndex, EdgePsNode, NodeIndex, Outage,
     PowerSystem, PsNode, SigmAlg, U,
 };
+
+#[derive(Debug)]
+pub struct GenerateOutageError {
+    names_failed: Vec<String>,
+}
+
+impl Display for GenerateOutageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return write!(
+            f,
+            "Unable to determine the edges for names: {:?}",
+            self.names_failed
+        );
+    }
+}
+
+impl Error for GenerateOutageError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        "description() is deprecated; use Display"
+    }
+
+    fn cause(&self) -> Option<&dyn Error> {
+        self.source()
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PowerFlowNode {}
@@ -123,41 +154,92 @@ pub fn generate_sigma_alg(
     }
 }
 
-pub fn generate_outage(ps: &PowerSystem, edge_names: Vec<String>) -> Outage {
-    let edge_indices = edge_names
-        .iter()
-        .map(|en| ps.get_edge_by_name(en).unwrap().clone())
-        .collect::<Vec<EdgeIndex>>();
-
-    let edges = edge_indices.iter().map(|ei| ps.edges.get(*ei).unwrap().clone()).collect::<Vec<Rc<Edge>>>();
+pub fn generate_outage(
+    ps: &PowerSystem,
+    edge_names: Vec<String>,
+) -> Result<Outage, GenerateOutageError> {
+    let edges = match get_edge_from_edge_names(edge_names, ps) {
+        Ok(value) => value,
+        Err(value) => return Err(value),
+    };
 
     let basis_eles_dups = edges
-    .iter()
-    .flat_map(|f| vec![f.tbus.index, f.fbus.index].iter())
-    .map(|i| ps.sigma.to_basis.get(*i).unwrap().id)
-    .collect::<HashSet<usize>>();
+        .iter()
+        .flat_map(|f| vec![f.tbus.index, f.fbus.index])
+        .map(|node_index| ps.sigma.to_basis.get(node_index).unwrap().id)
+        .collect::<HashSet<usize>>();
 
-    let basis_eles = basis_eles_dups.iter().map(|i| ps.sigma.basis.get(*i).unwrap().clone()).collect::<Vec<Rc<BasisEle>>>();
-    let outage_nodes = basis_eles.iter().flat_map(|be| be.nodes.iter().map(|n| n.index)).collect::<Vec<NodeIndex>>();
-
-    let boundary = ps.edges.iter().filter(|e| outage_nodes.contains(&e.fbus.index) != outage_nodes.contains(&e.tbus.index)).map(|e| e.clone()).collect::<Vec<Rc<Edge>>>();
-
-    let delta_u = boundary.iter().filter(|e| {
-        match ps.start_u.get(e.index).unwrap(){
-            U::Open => false,
-            U::Closed => true,
-            U::DontCare => true,
-        }
-    }).map(|e|{
-        DeltaU { index: e.index, new_u: U::Closed }
-    }).collect::<Vec<DeltaU>>();
+    let basis_eles = basis_eles_dups
+        .iter()
+        .map(|i| ps.sigma.basis.get(*i).unwrap().clone())
+        .collect::<Vec<Rc<BasisEle>>>();
     
-    Outage {
-        in_outage: ps.nodes_iter().map(|i| outage_nodes.contains(i)).collect(),
+    let outage_nodes = basis_eles
+        .iter()
+        .flat_map(|be| be.nodes.iter().map(|n| n.index))
+        .collect::<Vec<NodeIndex>>();
+
+    let mut edges_boundary = Vec::new();
+    let mut edges_inside = Vec::new();
+
+    let target_u = zip(ps.switch_iter(), ps.start_u.iter())
+        .map(|(e, u)| {
+            if outage_nodes.contains(&e.fbus.index) != outage_nodes.contains(&e.tbus.index) {
+                edges_boundary.push(e.clone());
+                return U::Open;
+            } else if outage_nodes.contains(&e.fbus.index) {
+                edges_inside.push(e.clone());
+                return U::DontCare;
+            } else {
+                return u.clone();
+            }
+        }).collect::<Vec<U>>();
+
+
+    let delta_u = zip(target_u.iter(), ps.start_u.iter())
+        .enumerate()
+        .filter(|(_i, (tu, su))| tu != su)
+        .map(|(index, (tu, _su))| DeltaU {
+            index: index,
+            new_u: *tu,
+        })
+        .collect::<Vec<DeltaU>>();
+
+    Ok(Outage {
+        in_outage: ps
+            .nodes_iter()
+            .map(|n| outage_nodes.contains(&n.index))
+            .collect(),
         basis: basis_eles,
-        boundary: boundary,
+        edges_boundary: edges_boundary,
+        edges_inside: edges_inside,
         delta_u: delta_u,
+        target_u: target_u,
+    })
+}
+
+fn get_edge_from_edge_names(edge_names: Vec<String>, ps: &PowerSystem) -> Result<Vec<Rc<Edge>>, GenerateOutageError> {
+    let edges_opt = edge_names
+        .iter()
+        .map(|en| ps.get_edge_by_name(en))
+        .collect::<Vec<Option<&Rc<Edge>>>>();
+
+    let errs = zip(&edge_names, &edges_opt)
+        .filter(|(_name, opt_index)| opt_index.is_none())
+        .map(|tu| tu.0.to_owned())
+        .collect::<Vec<String>>();
+
+    if errs.len() > 0 {
+        return Err(GenerateOutageError { names_failed: errs });
     }
+
+    let edges = edges_opt
+        .into_iter()
+        .map(Option::unwrap)
+        .map(Rc::clone)
+        .collect::<Vec<Rc<Edge>>>();
+
+    Ok(edges)
 }
 
 pub fn generate_super_node_mapping(ps: &PowerSystem, delta_u: &Vec<DeltaU>) -> Vec<Vec<usize>> {
@@ -272,12 +354,19 @@ mod tests {
             ps.nodes.len()
         );
 
-
-        ps.nodes_iter().for_each(|n|{
-            assert!(sig.to_basis[n.index].nodes.iter().find(|n2| n2.index == n.index).is_some());
+        ps.nodes_iter().for_each(|n| {
+            assert!(sig.to_basis[n.index]
+                .nodes
+                .iter()
+                .find(|n2| n2.index == n.index)
+                .is_some());
         });
 
-        let basis26 = sig.basis.iter().find(|b| b.nodes.iter().find(|n| n.num == 26).is_some()).unwrap();
+        let basis26 = sig
+            .basis
+            .iter()
+            .find(|b| b.nodes.iter().find(|n| n.num == 26).is_some())
+            .unwrap();
 
         assert!(basis26.nodes.iter().find(|n| n.num == 26).is_some());
         assert!(basis26.nodes.iter().find(|n| n.num == 28).is_some());
