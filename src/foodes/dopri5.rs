@@ -2,9 +2,9 @@
 
 use std::{time::Instant, iter::{zip, Zip}};
 
-use crate::butcher_tableau::dopri54;
-use crate::controller::Controller;
-use crate::dop_shared::*;
+use super::butcher_tableau::dopri54;
+use super::controller::Controller;
+use super::*;
 
 use chrono::Utc;
 use nalgebra::{allocator::Allocator, DefaultAllocator, Dim, OVector, Scalar, Const};
@@ -12,11 +12,11 @@ use num_traits::Zero;
 use simba::scalar::{ClosedAdd, ClosedMul, ClosedNeg, ClosedSub, SubsetOf, SupersetOf};
 
 trait DefaultController {
-    fn default(x: f64, x_end: f64) -> Self;
+    fn default(x: f32, x_end: f32) -> Self;
 }
 
 impl DefaultController for Controller {
-    fn default(x: f64, x_end: f64) -> Self {
+    fn default(x: f32, x_end: f32) -> Self {
         let alpha = 0.2 - 0.04 * 0.75;
         Controller::new(alpha, 0.04, 10.0, 0.2, x_end - x, 0.9, sign(1.0, x_end - x))
     }
@@ -28,19 +28,19 @@ where
     F: System<V>,
 {
     f: F,
-    x: f64,
-    x_old: f64,
-    x_end: f64,
-    xd: f64,
-    dx: f64,
+    x: f32,
+    x_old: f32,
+    x_end: f32,
+    xd: f32,
+    dx: f32,
     y: V,
-    rtol: f64,
-    atol: f64,
-    x_out: Vec<f64>,
+    rtol: f32,
+    atol: f32,
+    x_out: Vec<f32>,
     y_out: Vec<V>,
-    uround: f64,
-    h: f64,
-    h_old: f64,
+    uround: f32,
+    h: f32,
+    h_old: f32,
     n_max: u32,
     n_stiff: u32,
     controller: Controller,
@@ -51,8 +51,8 @@ where
 
 impl<T, D: Dim, F> Dopri5<OVector<T, D>, F>
 where
-    f64: From<T>,
-    T: Copy + SubsetOf<f64> + Scalar + ClosedAdd + ClosedMul + ClosedSub + ClosedNeg + Zero,
+    f32: From<T>,
+    T: Copy + SubsetOf<f32> + Scalar + ClosedAdd + ClosedMul + ClosedSub + ClosedNeg + Zero,
     F: System<OVector<T, D>>,
     DefaultAllocator: Allocator<T, D>,
 {
@@ -68,7 +68,7 @@ where
     /// * `rtol`    - Relative tolerance used in the computation of the adaptive step size
     /// * `atol`    - Absolute tolerance used in the computation of the adaptive step size
     ///
-    pub fn new(f: F, x: f64, x_end: f64, dx: f64, y: OVector<T, D>, rtol: f64, atol: f64) -> Self {
+    pub fn new(f: F, x: f32, x_end: f32, dx: f32, y: OVector<T, D>, rtol: f32, atol: f32) -> Self {
         let (rows, cols) = y.shape_generic();
         Self {
             f,
@@ -82,7 +82,7 @@ where
             atol,
             x_out: Vec::new(),
             y_out: Vec::new(),
-            uround: f64::EPSILON,
+            uround: f32::EPSILON,
             h: 0.0,
             h_old: 0.0,
             n_max: 100000,
@@ -124,18 +124,18 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn from_param(
         f: F,
-        x: f64,
-        x_end: f64,
-        dx: f64,
+        x: f32,
+        x_end: f32,
+        dx: f32,
         y: OVector<T, D>,
-        rtol: f64,
-        atol: f64,
-        safety_factor: f64,
-        beta: f64,
-        fac_min: f64,
-        fac_max: f64,
-        h_max: f64,
-        h: f64,
+        rtol: f32,
+        atol: f32,
+        safety_factor: f32,
+        beta: f32,
+        fac_min: f32,
+        fac_max: f32,
+        h_max: f32,
+        h: f32,
         n_max: u32,
         n_stiff: u32,
         out_type: OutputType,
@@ -154,7 +154,7 @@ where
             atol,
             x_out: Vec::new(),
             y_out: Vec::new(),
-            uround: f64::EPSILON,
+            uround: f32::EPSILON,
             h,
             h_old: 0.0,
             n_max,
@@ -181,7 +181,7 @@ where
     }
 
     /// Compute the initial stepsize
-    fn hinit(&self) -> f64 {
+    fn hinit(&self) -> f32 {
         let (rows, cols) = self.y.shape_generic();
         let mut f0 = OVector::zeros_generic(rows, cols);
         self.f.system(self.x, &self.y, &mut f0);
@@ -192,10 +192,10 @@ where
         let mut d0 = 0.0;
         let mut d1 = 0.0;
         for i in 0..dim {
-            let y_i = f64::from(self.y[i]);
+            let y_i = f32::from(self.y[i]);
             let sci = self.atol + y_i.abs() * self.rtol;
             d0 += (y_i / sci) * (y_i / sci);
-            let f0_i = f64::from(f0[i]);
+            let f0_i = f32::from(f0[i]);
             d1 += (f0_i / sci) * (f0_i / sci);
         }
 
@@ -214,18 +214,18 @@ where
         self.f.system(self.x + h0, &y1, &mut f1);
 
         // Compute the norm of f1-f0 divided by h0
-        let mut d2: f64 = 0.0;
+        let mut d2: f32 = 0.0;
         for i in 0..dim {
-            let f0_i = f64::from(f0[i]);
-            let f1_i = f64::from(f1[i]);
-            let y_i = f64::from(self.y[i]);
-            let sci: f64 = self.atol + y_i.abs() * self.rtol;
+            let f0_i = f32::from(f0[i]);
+            let f1_i = f32::from(f1[i]);
+            let y_i = f32::from(self.y[i]);
+            let sci: f32 = self.atol + y_i.abs() * self.rtol;
             d2 += ((f1_i - f0_i) / sci) * ((f1_i - f0_i) / sci);
         }
         d2 = d2.sqrt() / h0;
 
         let h1 = if d1.sqrt().max(d2.abs()) <= 1.0E-15 {
-            (1.0E-6_f64).max(h0.abs() * 1.0E-3)
+            (1.0E-6_f32).max(h0.abs() * 1.0E-3)
         } else {
             (0.01 / (d1.sqrt().max(d2))).powf(1.0 / 5.0)
         };
@@ -297,7 +297,7 @@ where
                     y_next += k_value * h * dopri54::a(s + 1, j + 1);
                 }
                 self.f.system(
-                    self.x + self.h * dopri54::c::<f64>(s + 1),
+                    self.x + self.h * dopri54::c::<f32>(s + 1),
                     &y_next,
                     &mut k[s],
                 );
@@ -331,13 +331,13 @@ where
             // Compute error
             let mut err = 0.0;
             for i in 0..dim {
-                let y_i = f64::from(self.y[i]);
-                let y_next_i = f64::from(y_next[i]);
-                let sc_i: f64 = self.atol + y_i.abs().max(y_next_i.abs()) * self.rtol;
-                let err_est_i = f64::from(k[3][i]);
+                let y_i = f32::from(self.y[i]);
+                let y_next_i = f32::from(y_next[i]);
+                let sc_i: f32 = self.atol + y_i.abs().max(y_next_i.abs()) * self.rtol;
+                let err_est_i = f32::from(k[3][i]);
                 err += (err_est_i / sc_i) * (err_est_i / sc_i);
             }
-            err = (err / dim as f64).sqrt();
+            err = (err / dim as f32).sqrt();
 
             // Step size control
             if self.controller.accept(err, self.h, &mut h_new) {
@@ -345,8 +345,8 @@ where
 
                 // Stifness detection
                 if self.stats.accepted_steps % self.n_stiff == 0 || iasti > 0 {
-                    let num = f64::from((&k[1] - &k[5]).dot(&(&k[1] - &k[5])));
-                    let den = f64::from((&y_next - &y_stiff).dot(&(&y_next - &y_stiff)));
+                    let num = f32::from((&k[1] - &k[5]).dot(&(&k[1] - &k[5])));
+                    let den = f32::from((&y_next - &y_stiff).dot(&(&y_next - &y_stiff)));
                     let h_lamb = if den > 0.0 {
                         self.h * (num / den).sqrt()
                     } else {
@@ -440,7 +440,7 @@ where
     }
 
     /// Getter for the independent variable's output.
-    pub fn x_out(&self) -> &Vec<f64> {
+    pub fn x_out(&self) -> &Vec<f32> {
         &self.x_out
     }
 
@@ -450,7 +450,7 @@ where
     }
 }
 
-fn sign(a: f64, b: f64) -> f64 {
+fn sign(a: f32, b: f32) -> f32 {
     if b > 0.0 {
         a.abs()
     } else {

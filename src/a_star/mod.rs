@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::BinaryHeap, fmt::{Binary, Debug, Display},
 use chrono::{DateTime, Utc, Duration};
 use nalgebra::uninit::Init;
 
-use crate::{power_system::{self, DeltaU, PowerSystem, U, Outage}, a_star::a_star_node::NodeState, utils::{duration, PrettyDuration}};
+use crate::{power_system::{self, DeltaU, PowerSystem, U, outage::Outage}, a_star::a_star_node::NodeState, utils::{duration, PrettyDuration}};
 
 use self::{a_star_node::{AStarNode, HeapNode, Contribution}, steady_state_adapter::SteadyStateContri, transient_adapter::TransientAdapter};
 

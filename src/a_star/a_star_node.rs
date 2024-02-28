@@ -6,7 +6,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::power_system::{plague_algo::PowerFlowNode, DeltaU, PowerSystem, SigmAlg, U};
+use crate::power_system::{DeltaU, PowerSystem, U};
 
 use super::{
     steady_state_adapter::{SteadyStateContri, SteadyStateError, SteadyStateResults},
@@ -37,7 +37,7 @@ pub enum NodeState {
     Finished,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct AStarNode {
     pub display: String,
     pub state: NodeState,
@@ -50,6 +50,12 @@ pub struct AStarNode {
     pub contribution: Vec<Contribution>,
     pub depth: usize,
     pub objective: f32,
+}
+
+impl PartialEq for AStarNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.delta_u == other.delta_u && self.depth == other.depth
+    }
 }
 
 impl Eq for AStarNode {}

@@ -1,6 +1,6 @@
 use std::{ops::Mul, time::Duration, usize};
 
-use crate::dop_shared::{Stats, System};
+use super::*;
 use nalgebra::{
     allocator::Allocator, Const, DVector, DefaultAllocator, Dim, DimName, Dyn, OVector,
 };
@@ -8,17 +8,17 @@ use nalgebra_sparse::csr::{CsrMatrix, CsrRow};
 use nalgebra_sparse::ops::serial::spmm_csr_dense;
 use nalgebra_sparse::ops::Op;
 
-pub type State = DVector<f64>;
-pub type Time = f64;
+pub type State = DVector<f32>;
+pub type Time = f32;
 
 #[derive(Debug, Clone)]
 pub struct Foode {
-    pub mat: CsrMatrix<f64>,
-    forcing_fn: fn(f64, &mut State),
+    pub mat: CsrMatrix<f32>,
+    forcing_fn: fn(f32, &mut State),
 }
 
 impl System<State> for Foode {
-    fn system(&self, x: f64, y: &State, dy: &mut State) {
+    fn system(&self, x: f32, y: &State, dy: &mut State) {
         (self.forcing_fn)(x, dy);
         spmm_csr_dense(0.0, dy, 1.0, Op::NoOp(&self.mat), Op::NoOp(y));
     }
@@ -26,18 +26,18 @@ impl System<State> for Foode {
 
 #[cfg(test)]
 mod tests {
-    use crate::dop853::Dop853;
-    use crate::dop_shared::{Integratable, System};
-    use crate::dopri5::Dopri5;
-    use crate::rk4::Rk4;
-    use crate::{dop_shared::Stats, dopri5};
-    use crate::{foode::State, matrix_builder::MatBuilder};
+    use super::dop853::Dop853;
+    use super::{Integratable, System};
+    use super::dopri5::Dopri5;
+    use super::rk4::Rk4;
+    use super::{Stats, dopri5};
+    use crate::{foodes::foode::State, matrix_builder::MatBuilder};
     use nalgebra::{DVector, Dim, Dyn, OVector, Vector1};
     use nalgebra_sparse::CsrMatrix;
     use std::iter::zip;
     use std::time::Duration;
 
-    use crate::{foode::Foode, matrix_builder::CsrMatBuilder};
+    use crate::{foodes::foode::Foode, matrix_builder::CsrMatBuilder};
 
     macro_rules! assert_delta {
         ($x:expr, $y:expr, $d:expr) => {
@@ -55,13 +55,13 @@ mod tests {
 
     impl Solvers {
         pub fn new(
-            x_start: f64,
-            x_end: f64,
-            delta_x: f64,
+            x_start: f32,
+            x_end: f32,
+            delta_x: f32,
             y: State,
-            tolerance: f64,
-            mat: CsrMatrix<f64>,
-            forcing_fn: fn(f64, &mut State),
+            tolerance: f32,
+            mat: CsrMatrix<f32>,
+            forcing_fn: fn(f32, &mut State),
         ) -> Solvers {
             let system = Foode {
                 mat: mat,
@@ -102,7 +102,7 @@ mod tests {
             println!("{}", stats_dop853.unwrap());
         }
 
-        fn check_self(&self, tolerance: f64, opt_f: Option<fn(f64) -> State>) {
+        fn check_self(&self, tolerance: f32, opt_f: Option<fn(f32) -> State>) {
 
             if opt_f.is_some() {
                 let f = opt_f.unwrap();
@@ -126,27 +126,27 @@ mod tests {
         }
     }
 
-    fn t_squared(t: f64, _x: &f64) -> f64 {
+    fn t_squared(t: f32, _x: &f32) -> f32 {
         t * t
     }
 
-    fn approx_equals(v1: f64, v2: f64, tolerance: f64) -> bool {
+    fn approx_equals(v1: f32, v2: f32, tolerance: f32) -> bool {
         (v1 - v2).abs() < tolerance
     }
 
-    fn assert_delta_vec(v1: &State, v2: &State, tolerance: f64) {
+    fn assert_delta_vec(v1: &State, v2: &State, tolerance: f32) {
         zip(v1, v2).for_each(|v| assert_delta!(v.0, v.1, tolerance));
     }
 
-    fn func(t: f64, x: &f64) -> f64 {
+    fn func(t: f32, x: &f32) -> f32 {
         x - t * t + 1.0
     }
 
-    fn func_integrated(t: f64) -> State {
-        State::repeat(1, -0.5 * (-2.0 * t * t - 4.0 * t + f64::exp(t) - 2.0))
+    fn func_integrated(t: f32) -> State {
+        State::repeat(1, -0.5 * (-2.0 * t * t - 4.0 * t + f32::exp(t) - 2.0))
     }
 
-    fn t_squared_plus_one(t: f64, dx: &mut DVector<f64>) {
+    fn t_squared_plus_one(t: f32, dx: &mut DVector<f32>) {
         dx[0] = t * t + 1.0;
     }
 
@@ -154,7 +154,7 @@ mod tests {
     fn test_integrate_1() {
         let tolerance = 1.0E-6;
         let dvec = State::repeat(1, 0.5);
-        let mat = CsrMatBuilder::<f64>::new(1, 1)
+        let mat = CsrMatBuilder::<f32>::new(1, 1)
             .add(0, 0, 1.0)
             .build()
             .unwrap();
@@ -166,16 +166,16 @@ mod tests {
         solvers.check_self(tolerance, Some(func_integrated));
     }
 
-    fn forcing_fn_2(x: f64, dy: &mut DVector<f64>) {
-        dy[0] = 12.0*f64::exp(x);
-        dy[1] = 18.0*f64::exp(x);
+    fn forcing_fn_2(x: f32, dy: &mut DVector<f32>) {
+        dy[0] = 12.0*f32::exp(x);
+        dy[1] = 18.0*f32::exp(x);
     }
 
     #[test]
     fn test_integrate_2() {
         let tolerance = 1.0E-6;
         let dvec = State::repeat(2, 0.5);
-        let mat = CsrMatBuilder::<f64>::new(2, 2)
+        let mat = CsrMatBuilder::<f32>::new(2, 2)
             .add(0, 0, 1.0)
             .add(0, 1, 2.0)
             .add(1, 0, 4.0)

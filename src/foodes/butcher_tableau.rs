@@ -7,7 +7,7 @@
 pub(crate) mod dopri54 {
     use simba::scalar::{SubsetOf, SupersetOf};
 
-    const A: ([f64; 1], [f64; 2], [f64; 3], [f64; 4], [f64; 5], [f64; 6]) = (
+    const A: ([f32; 1], [f32; 2], [f32; 3], [f32; 4], [f32; 5], [f32; 6]) = (
         [1.0 / 5.0],
         [3.0 / 40.0, 9.0 / 40.0],
         [44.0 / 45.0, -56.0 / 15.0, 32.0 / 9.0],
@@ -33,8 +33,8 @@ pub(crate) mod dopri54 {
             11.0 / 84.0,
         ],
     );
-    const C: [f64; 7] = [0.0, 1.0 / 5.0, 3.0 / 10.0, 4.0 / 5.0, 8.0 / 9.0, 1.0, 1.0];
-    const D: [f64; 7] = [
+    const C: [f32; 7] = [0.0, 1.0 / 5.0, 3.0 / 10.0, 4.0 / 5.0, 8.0 / 9.0, 1.0, 1.0];
+    const D: [f32; 7] = [
         -12715105075.0 / 11282082432.0,
         0.0,
         87487479700.0 / 32700410799.0,
@@ -43,7 +43,7 @@ pub(crate) mod dopri54 {
         -1453857185.0 / 822651844.0,
         69997945.0 / 29380423.0,
     ];
-    const E: [f64; 7] = [
+    const E: [f32; 7] = [
         71.0 / 57600.0,
         0.0,
         -71.0 / 16695.0,
@@ -54,7 +54,7 @@ pub(crate) mod dopri54 {
     ];
 
     /// Returns the _a<sub>ij</sub>_ coefficient of the Runge-Kutta matrix.
-    pub fn a<T: SubsetOf<f64>>(i: usize, j: usize) -> T {
+    pub fn a<T: SubsetOf<f32>>(i: usize, j: usize) -> T {
         (match i - 2 {
             0 => &A.0[..],
             1 => &A.1[..],
@@ -69,17 +69,17 @@ pub(crate) mod dopri54 {
     }
 
     /// Returns the _c<sub>i</sub>_ coefficient.
-    pub fn c<T: SubsetOf<f64>>(i: usize) -> T {
+    pub fn c<T: SubsetOf<f32>>(i: usize) -> T {
         C[i - 1].to_subset().unwrap()
     }
 
     /// Returns the _d<sub>i</sub>_ coefficient.
-    pub fn d<T: SubsetOf<f64>>(i: usize) -> T {
+    pub fn d<T: SubsetOf<f32>>(i: usize) -> T {
         D[i - 1].to_subset().unwrap()
     }
 
     /// Returns the _e<sub>i</sub>_ coefficient.
-    pub fn e<T: SubsetOf<f64>>(i: usize) -> T {
+    pub fn e<T: SubsetOf<f32>>(i: usize) -> T {
         E[i - 1].to_subset().unwrap()
     }
 }
@@ -89,21 +89,21 @@ pub(crate) mod dopri853 {
     use simba::scalar::{SubsetOf, SupersetOf};
 
     const A: (
-        [f64; 1],
-        [f64; 2],
-        [f64; 3],
-        [f64; 4],
-        [f64; 5],
-        [f64; 6],
-        [f64; 7],
-        [f64; 8],
-        [f64; 9],
-        [f64; 10],
-        [f64; 11],
-        [f64; 12],
-        [f64; 13],
-        [f64; 14],
-        [f64; 15],
+        [f32; 1],
+        [f32; 2],
+        [f32; 3],
+        [f32; 4],
+        [f32; 5],
+        [f32; 6],
+        [f32; 7],
+        [f32; 8],
+        [f32; 9],
+        [f32; 10],
+        [f32; 11],
+        [f32; 12],
+        [f32; 13],
+        [f32; 14],
+        [f32; 15],
     ) = (
         [5.26001519587677318785587544488E-2],
         [
@@ -242,7 +242,7 @@ pub(crate) mod dopri853 {
         ],
     );
 
-    const B: [f64; 12] = [
+    const B: [f32; 12] = [
         5.42937341165687622380535766363E-2,
         0.0,
         0.0,
@@ -257,13 +257,13 @@ pub(crate) mod dopri853 {
         4.47106157277725905176885569043E-2,
     ];
 
-    const BHH: [f64; 3] = [
+    const BHH: [f32; 3] = [
         0.244094488188976377952755905512E+00,
         0.733846688281611857341361741547E+00,
         0.220588235294117647058823529412E-01,
     ];
 
-    const C: [f64; 16] = [
+    const C: [f32; 16] = [
         0.0,
         0.526001519587677318785587544488E-01,
         0.789002279381515978178381316732E-01,
@@ -282,7 +282,7 @@ pub(crate) mod dopri853 {
         0.777777777777777777777777777778E+00,
     ];
 
-    const D: [[f64; 16]; 4] = [
+    const D: [[f32; 16]; 4] = [
         [
             -0.84289382761090128651353491142E+01,
             0.0,
@@ -357,7 +357,7 @@ pub(crate) mod dopri853 {
         ],
     ];
 
-    const E: [f64; 16] = [
+    const E: [f32; 16] = [
         0.1312004499419488073250102996E-01,
         0.0,
         0.0,
@@ -377,7 +377,7 @@ pub(crate) mod dopri853 {
     ];
 
     /// Returns the _a<sub>ij</sub>_ coefficient.
-    pub fn a<T: SubsetOf<f64>>(i: usize, j: usize) -> T {
+    pub fn a<T: SubsetOf<f32>>(i: usize, j: usize) -> T {
         (match i - 2 {
             0 => &A.0[..],
             1 => &A.1[..],
@@ -401,102 +401,102 @@ pub(crate) mod dopri853 {
     }
 
     /// Returns the _b<sub>i</sub>_ coefficient.
-    pub fn b<T: SubsetOf<f64>>(i: usize) -> T {
+    pub fn b<T: SubsetOf<f32>>(i: usize) -> T {
         B[i - 1].to_subset().unwrap()
     }
 
     /// Returns the _bhh<sub>i</sub>_ coefficient.
-    pub fn bhh<T: SubsetOf<f64>>(i: usize) -> T {
+    pub fn bhh<T: SubsetOf<f32>>(i: usize) -> T {
         BHH[i - 1].to_subset().unwrap()
     }
 
     /// Returns the _c<sub>i</sub>_ coefficient.
-    pub fn c<T: SubsetOf<f64>>(i: usize) -> T {
+    pub fn c<T: SubsetOf<f32>>(i: usize) -> T {
         C[i - 1].to_subset().unwrap()
     }
 
     /// Returns the _d<sub>i</sub>_ coefficient.
-    pub fn d<T: SubsetOf<f64>>(i: usize, j: usize) -> T {
+    pub fn d<T: SubsetOf<f32>>(i: usize, j: usize) -> T {
         D[i - 4][j - 1].to_subset().unwrap()
     }
 
     /// Returns the _e<sub>i</sub>_ coefficient.
-    pub fn e<T: SubsetOf<f64>>(i: usize) -> T {
+    pub fn e<T: SubsetOf<f32>>(i: usize) -> T {
         E[i - 1].to_subset().unwrap()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::butcher_tableau::{dopri54, dopri853};
+    use super::{dopri54, dopri853};
 
     #[test]
     fn dopri5_a() {
-        assert_eq!(dopri54::a::<f64>(3, 2), 9.0 / 40.0);
-        assert_eq!(dopri54::a::<f64>(5, 3), 64448.0 / 6561.0);
+        assert_eq!(dopri54::a::<f32>(3, 2), 9.0 / 40.0);
+        assert_eq!(dopri54::a::<f32>(5, 3), 64448.0 / 6561.0);
     }
 
     #[test]
     fn dopri5_c() {
-        assert_eq!(dopri54::c::<f64>(1), 0.0);
-        assert_eq!(dopri54::c::<f64>(3), 3.0 / 10.0);
+        assert_eq!(dopri54::c::<f32>(1), 0.0);
+        assert_eq!(dopri54::c::<f32>(3), 3.0 / 10.0);
     }
 
     #[test]
     fn dopri5_d() {
-        assert_eq!(dopri54::d::<f64>(3), 87487479700.0 / 32700410799.0);
-        assert_eq!(dopri54::d::<f64>(7), 69997945.0 / 29380423.0);
+        assert_eq!(dopri54::d::<f32>(3), 87487479700.0 / 32700410799.0);
+        assert_eq!(dopri54::d::<f32>(7), 69997945.0 / 29380423.0);
     }
 
     #[test]
     fn dopri5_e() {
-        assert_eq!(dopri54::e::<f64>(1), 71.0 / 57600.0);
-        assert_eq!(dopri54::e::<f64>(7), -1.0 / 40.0);
+        assert_eq!(dopri54::e::<f32>(1), 71.0 / 57600.0);
+        assert_eq!(dopri54::e::<f32>(7), -1.0 / 40.0);
     }
 
     #[test]
     fn dopri853_a() {
-        assert_eq!(dopri853::a::<f64>(2, 1), 5.26001519587677318785587544488E-2);
-        assert_eq!(dopri853::a::<f64>(7, 4), 1.70252211019544039314978060272E-1);
+        assert_eq!(dopri853::a::<f32>(2, 1), 5.26001519587677318785587544488E-2);
+        assert_eq!(dopri853::a::<f32>(7, 4), 1.70252211019544039314978060272E-1);
         assert_eq!(
-            dopri853::a::<f64>(12, 9),
+            dopri853::a::<f32>(12, 9),
             -8.87285693353062954433549289258E0
         );
-        assert_eq!(dopri853::a::<f64>(15, 3), 0.0);
-        assert_eq!(dopri853::a::<f64>(4, 3), 8.87627564304205475450678981324E-2);
+        assert_eq!(dopri853::a::<f32>(15, 3), 0.0);
+        assert_eq!(dopri853::a::<f32>(4, 3), 8.87627564304205475450678981324E-2);
     }
 
     #[test]
     fn dopri853_b() {
-        assert_eq!(dopri853::b::<f64>(6), 4.45031289275240888144113950566E0);
-        assert_eq!(dopri853::b::<f64>(10), -1.52160949662516078556178806805E-1);
+        assert_eq!(dopri853::b::<f32>(6), 4.45031289275240888144113950566E0);
+        assert_eq!(dopri853::b::<f32>(10), -1.52160949662516078556178806805E-1);
     }
 
     #[test]
     fn dopri853_c() {
-        assert_eq!(dopri853::c::<f64>(3), 0.789002279381515978178381316732E-01);
-        assert_eq!(dopri853::c::<f64>(8), 0.307692307692307692307692307692E+00);
+        assert_eq!(dopri853::c::<f32>(3), 0.789002279381515978178381316732E-01);
+        assert_eq!(dopri853::c::<f32>(8), 0.307692307692307692307692307692E+00);
     }
 
     #[test]
     fn dopri853_d() {
-        assert_eq!(dopri853::d::<f64>(6, 4), 0.0);
+        assert_eq!(dopri853::d::<f32>(6, 4), 0.0);
         assert_eq!(
-            dopri853::d::<f64>(5, 9),
+            dopri853::d::<f32>(5, 9),
             -0.22113666853125306036270938578E+02
         );
     }
 
     #[test]
     fn dopri853_e() {
-        assert_eq!(dopri853::e::<f64>(1), 0.1312004499419488073250102996E-01);
-        assert_eq!(dopri853::e::<f64>(12), -0.2235530786388629525884427845E-01);
+        assert_eq!(dopri853::e::<f32>(1), 0.1312004499419488073250102996E-01);
+        assert_eq!(dopri853::e::<f32>(12), -0.2235530786388629525884427845E-01);
     }
 
     #[test]
     fn dopri853_bhh() {
         assert_eq!(
-            dopri853::bhh::<f64>(1),
+            dopri853::bhh::<f32>(1),
             0.244094488188976377952755905512E+00
         );
     }

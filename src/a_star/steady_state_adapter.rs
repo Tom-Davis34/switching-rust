@@ -5,19 +5,20 @@ use chrono::Utc;
 
 use crate::a_star::a_star_node::Contribution;
 use crate::a_star::a_star_node::ContributionType;
-use crate::power_system::{plague_algo::PowerFlowNode, PowerSystem, SigmAlg, U};
+use crate::power_system::power_flow_model::PfNode;
+use crate::power_system::{PowerSystem, U};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SteadyStateError {
     Msg(String),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct SteadyStateResults {
-    pub result: Vec<Rc<PowerFlowNode>>,
+    pub result: Vec<Rc<PfNode>>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct SteadyStateContri {
     pub duration: Duration,
     pub contri: Vec<Contribution>,

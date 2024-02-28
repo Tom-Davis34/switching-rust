@@ -1,6 +1,6 @@
 //! Explicit Runge-Kutta method of order 4 with fixed step size.
 
-use crate::dop_shared::{IntegrationError, Stats, System, Integratable};
+use crate::foodes::{IntegrationError, Stats, System, Integratable};
 
 use chrono::Utc;
 use nalgebra::{allocator::Allocator, DefaultAllocator, Dim, OVector, Scalar};
@@ -13,22 +13,22 @@ where
     F: System<V>,
 {
     f: F,
-    x: f64,
+    x: f32,
     y: V,
-    x_end: f64,
-    step_size: f64,
-    half_step: f64,
-    x_out: Vec<f64>,
+    x_end: f32,
+    step_size: f32,
+    half_step: f32,
+    x_out: Vec<f32>,
     y_out: Vec<V>,
     stats: Stats,
 }
 
 impl<T, D: Dim, F> Rk4<OVector<T, D>, F>
 where
-    f64: From<T>,
-    T: Copy + SubsetOf<f64> + Scalar + ClosedAdd + ClosedMul + ClosedSub + ClosedNeg + Zero,
+    f32: From<T>,
+    T: Copy + SubsetOf<f32> + Scalar + ClosedAdd + ClosedMul + ClosedSub + ClosedNeg + Zero,
     F: System<OVector<T, D>>,
-    OVector<T, D>: std::ops::Mul<f64, Output = OVector<T, D>>,
+    OVector<T, D>: std::ops::Mul<f32, Output = OVector<T, D>>,
     DefaultAllocator: Allocator<T, D>,
 {
     /// Default initializer for the structure
@@ -41,7 +41,7 @@ where
     /// * `step_size`   - Step size used in the method
     /// * `y`           - Initial value of the dependent variable(s)
     ///
-    pub fn new(f: F, x: f64, x_end: f64, step_size: f64, y: OVector<T, D>) -> Self {
+    pub fn new(f: F, x: f32, x_end: f32, step_size: f32, y: OVector<T, D>) -> Self {
         Rk4 {
             f,
             x,
@@ -81,7 +81,7 @@ where
     }
 
     /// Performs one step of the Runge-Kutta 4 method.
-    fn step(&self) -> (f64, OVector<T, D>) {
+    fn step(&self) -> (f32, OVector<T, D>) {
         let (rows, cols) = self.y.shape_generic();
         let mut k = vec![OVector::zeros_generic(rows, cols); 12];
 
@@ -110,7 +110,7 @@ where
     }
 
     /// Getter for the independent variable's output.
-    pub fn x_out(&self) -> &Vec<f64> {
+    pub fn x_out(&self) -> &Vec<f32> {
         &self.x_out
     }
 
@@ -122,35 +122,36 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{rk4::Rk4, dop_shared::System};
+    use crate::foodes::System;
+    use super::Rk4;
     use nalgebra::{allocator::Allocator, DefaultAllocator, Dim, OVector, Vector1, DVector};
 
     struct Test1 {}
-    impl<D: Dim> System<OVector<f64, D>> for Test1
+    impl<D: Dim> System<OVector<f32, D>> for Test1
     where
-        DefaultAllocator: Allocator<f64, D>,
+        DefaultAllocator: Allocator<f32, D>,
     {
-        fn system(&self, x: f64, y: &OVector<f64, D>, dy: &mut OVector<f64, D>) {
+        fn system(&self, x: f32, y: &OVector<f32, D>, dy: &mut OVector<f32, D>) {
             dy[0] = (x - y[0]) / 2.;
         }
     }
 
     struct Test2 {}
-    impl<D: Dim> System<OVector<f64, D>> for Test2
+    impl<D: Dim> System<OVector<f32, D>> for Test2
     where
-        DefaultAllocator: Allocator<f64, D>,
+        DefaultAllocator: Allocator<f32, D>,
     {
-        fn system(&self, x: f64, y: &OVector<f64, D>, dy: &mut OVector<f64, D>) {
+        fn system(&self, x: f32, y: &OVector<f32, D>, dy: &mut OVector<f32, D>) {
             dy[0] = -2. * x - y[0];
         }
     }
 
     struct Test3 {}
-    impl<D: Dim> System<OVector<f64, D>> for Test3
+    impl<D: Dim> System<OVector<f32, D>> for Test3
     where
-        DefaultAllocator: Allocator<f64, D>,
+        DefaultAllocator: Allocator<f32, D>,
     {
-        fn system(&self, x: f64, y: &OVector<f64, D>, dy: &mut OVector<f64, D>) {
+        fn system(&self, x: f32, y: &OVector<f32, D>, dy: &mut OVector<f32, D>) {
             dy[0] = (5. * x * x - y[0]) / (x + y[0]).exp();
         }
     }
@@ -185,9 +186,9 @@ mod tests {
         let mut stepper = Rk4::new(system, 0., 1., 0.1, Vector1::new(1.));
         let _ = stepper.integrate();
         let out = stepper.y_out();
-        assert!((&out[5][0] - 0.913059839).abs() < 1.0E-9);
-        assert!((&out[8][0] - 0.9838057659).abs() < 1.0E-9);
-        assert!((&out[10][0] - 1.0715783953).abs() < 1.0E-9);
+        assert!((&out[5][0] - 0.913059839).abs() < 1.0E-6);
+        assert!((&out[8][0] - 0.9838057659).abs() < 1.0E-6);
+        assert!((&out[10][0] - 1.0715783953).abs() < 1.0E-6);
     }
 
     #[test]
@@ -209,7 +210,7 @@ mod tests {
         let _ = stepper.integrate();
         let x_out = stepper.x_out();
         let y_out = stepper.y_out();
-        assert!((*x_out.last().unwrap() - 0.5).abs() < 1.0E-8);
+        assert!((*x_out.last().unwrap() - 0.5).abs() < 1.0E-6);
         assert!((&y_out[3][0] + 0.82246).abs() < 1.0E-5);
         assert!((&y_out[5][0] + 0.81959).abs() < 1.0E-5);
     }
@@ -220,8 +221,8 @@ mod tests {
         let mut stepper = Rk4::new(system, 0., 1., 0.1, DVector::from(vec![1.]));
         let _ = stepper.integrate();
         let out = stepper.y_out();
-        assert!((&out[5][0] - 0.913059839).abs() < 1.0E-9);
-        assert!((&out[8][0] - 0.9838057659).abs() < 1.0E-9);
-        assert!((&out[10][0] - 1.0715783953).abs() < 1.0E-9);
+        assert!((&out[5][0] - 0.913059839).abs() < 1.0E-6);
+        assert!((&out[8][0] - 0.9838057659).abs() < 1.0E-6);
+        assert!((&out[10][0] - 1.0715783953).abs() < 1.0E-6);
     }
 }

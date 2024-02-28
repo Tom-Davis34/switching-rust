@@ -201,11 +201,14 @@ impl PsNode {
         let img_gen = gens.map_or(0.0, |gen| gen.q);
         let gen = C32::new(real_gen, img_gen);
 
+        let system_v = parse::<f32>(&cells, 9);
+
         PsNode {
             index: s.0,
             num: num,
             load: load,
             gen: gen,
+            system_v,
             n_type: nt,
         }
     }

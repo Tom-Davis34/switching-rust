@@ -1,3 +1,4 @@
+use std::cmp;
 use std::fmt;
 use std::collections::HashMap;
 use std::iter::zip;
@@ -13,9 +14,12 @@ use crate::power_system::EdgeData::Cir;
 use crate::power_system::EdgeData::Sw;
 
 use self::plague_algo::generate_sigma_alg;
+use self::plague_algo::SimpleSigAlg;
 
 mod file_parsing;
 pub mod plague_algo;
+pub mod power_flow_model;
+pub mod outage;
 
 type EdgeIndex = usize;
 type NodeIndex = usize;
@@ -32,7 +36,6 @@ impl fmt::Display for U {
         write!(f, "{:?}", self)
     }
 }
-
 
 impl U {
     pub fn hamming_dist(target_u: &Vec<U>, actual_u: &Vec<U>) -> f32{
@@ -56,9 +59,47 @@ impl U {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone)]
 pub enum NodeType {
-	GND, PQ, PV, Sk 
+	PQ, PV, Sk 
+}
+
+impl Ord for NodeType {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (&self, other) {
+            (NodeType::PQ, NodeType::PQ) => cmp::Ordering::Equal,
+            (NodeType::PQ, NodeType::PV) => cmp::Ordering::Less,
+            (NodeType::PQ, NodeType::Sk) => cmp::Ordering::Less,
+            (NodeType::PV, NodeType::PQ) => cmp::Ordering::Greater,
+            (NodeType::PV, NodeType::PV) => cmp::Ordering::Equal,
+            (NodeType::PV, NodeType::Sk) => cmp::Ordering::Less,
+            (NodeType::Sk, NodeType::PQ) => cmp::Ordering::Greater,
+            (NodeType::Sk, NodeType::PV) => cmp::Ordering::Greater,
+            (NodeType::Sk, NodeType::Sk) => cmp::Ordering::Equal,
+        }
+    }
+
+    fn max(self, other: Self) -> Self
+    where
+        Self: Sized,
+    {
+        cmp::max_by(self, other, Ord::cmp)
+    }
+
+    fn min(self, other: Self) -> Self
+    where
+        Self: Sized,
+    {
+        cmp::min_by(self, other, Ord::cmp)
+    }
+
+    fn clamp(self, _min: Self, _max: Self) -> Self
+    where
+        Self: Sized,
+        Self: PartialOrd,
+    {
+        todo!()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -73,28 +114,6 @@ impl Display for DeltaU {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SigmAlg {
-    pub to_basis: Vec<Rc<BasisEle>>,
-    pub basis: Vec<Rc<BasisEle>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct BasisEle {
-    id: usize,
-    nodes: Vec<Rc<PsNode>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Outage {
-    pub in_outage: Vec<bool>,
-    pub basis: Vec<Rc<BasisEle>>,
-    pub edges_boundary: Vec<Edge>,
-    pub edges_inside: Vec<Edge>,
-    pub delta_u: Vec<DeltaU>,
-    pub target_u: Vec<U>,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseError;
 
@@ -104,6 +123,7 @@ pub struct PsNode{
     pub index: NodeIndex,
     pub load: C32,
     pub gen: C32,
+    pub system_v: f32,
     pub n_type: NodeType,
 }
 
@@ -162,9 +182,9 @@ pub struct PowerSystem {
 
     pub edges_names: HashMap<String, Rc<Edge>>,
 
-    pub sigma: SigmAlg,
+    pub sigma: SimpleSigAlg,
 
-    pub adjacent_node: HashMap<usize, Vec<EdgePsNode>>,
+    pub adjacent_node: HashMap<NodeIndex, Vec<EdgePsNode>>,
 }
 
 impl PowerSystem {
@@ -182,7 +202,7 @@ impl PowerSystem {
             .collect::<Vec<EdgePsNode>>();
 
             (node.index, edge_map)
-        }).collect::<HashMap<usize, Vec<EdgePsNode>>>();
+        }).collect::<HashMap<NodeIndex, Vec<EdgePsNode>>>();
 
         let mut edges_names: HashMap<String, Rc<Edge>> = HashMap::new();
 
@@ -210,7 +230,13 @@ impl PowerSystem {
 
         let switches = file_contents.edges.iter().filter(Edge::is_switch).map(Edge::clone).collect::<Vec<Edge>>();
 
-        let sigma = generate_sigma_alg(&adjacent_node, &edges, &nodes);
+
+        let edge_is_quarantine = |index: EdgeIndex| match edges.get(index).unwrap().data {
+            EdgeData::Cir(_) => false,
+            EdgeData::Sw(_) => true,
+        };
+
+        let sigma = generate_sigma_alg(&adjacent_node, &edges, &nodes, &edge_is_quarantine);
 
         PowerSystem { 
             _nodes: file_contents.nodes, 

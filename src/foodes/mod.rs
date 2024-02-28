@@ -1,16 +1,22 @@
 //! Shared traits and structures for dopri5 and dop853.
-
 use std::{fmt};
 use chrono::{Utc, DateTime, DurationRound, Duration};
 use nalgebra::OVector;
 use thiserror::Error;
 
+mod butcher_tableau;
+mod controller;
+mod dop853;
+mod dopri5;
+mod foode;
+mod rk4;
+
 /// Trait needed to be implemented by the user.
 pub trait System<V> {
     /// System of ordinary differential equations.
-    fn system(&self, x: f64, y: &V, dy: &mut V);
+    fn system(&self, x: f32, y: &V, dy: &mut V);
     /// Stop function called at every successful integration step. The integration is stopped when this function returns true.
-    fn solout(&mut self, _x: f64, _y: &V, _dy: &V) -> bool {
+    fn solout(&mut self, _x: f32, _y: &V, _dy: &V) -> bool {
         false
     }
 }
@@ -18,9 +24,11 @@ pub trait System<V> {
 pub trait Integratable<V>
 {
     fn integrate(&mut self) -> Result<Stats, IntegrationError>;
-    fn x_out(&self) ->  &Vec<f64>;
+    fn x_out(&self) ->  &Vec<f32>;
     fn _out(&self) -> &Vec<V>;
 }
+
+
 
 /// Enumeration of the types of the integration output.
 #[derive(PartialEq, Eq)]
@@ -33,11 +41,11 @@ pub enum OutputType {
 #[derive(Debug, Error)]
 pub enum IntegrationError {
     #[error("Stopped at x = {x}. Need more than {n_step} steps.")]
-    MaxNumStepReached { x: f64, n_step: u32 },
+    MaxNumStepReached { x: f32, n_step: u32 },
     #[error("Stopped at x = {x}. Step size underflow.")]
-    StepSizeUnderflow { x: f64 },
+    StepSizeUnderflow { x: f32 },
     #[error("The problem seems to become stiff at x = {x}.")]
-    StiffnessDetected { x: f64 },
+    StiffnessDetected { x: f32 },
 }
 
 /// Contains some statistics of the integration.

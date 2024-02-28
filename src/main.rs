@@ -4,20 +4,14 @@
 // #![feature(generic_const_exprs)]
 
 use clap::{command, Parser};
-use power_system::PowerSystem;
+use power_system::{PowerSystem, outage::Outage};
 
 use crate::{power_system::*, a_star::{a_star_node::AStarNode, AStar}};
 
 pub mod matrix_builder;
 pub mod traits;
-pub mod foode;
+pub mod foodes;
 pub mod matrix_utils;
-pub mod dop_shared;
-pub mod dop853;
-pub mod dopri5;
-pub mod butcher_tableau;
-pub mod controller;
-pub mod rk4;
 pub mod power_system;
 pub mod a_star;
 pub mod utils;
@@ -45,7 +39,7 @@ fn main() {
     let ps = PowerSystem::from_files(&args.ps);
     println!("PS: {:#?}", &ps);
 
-    let outage_res = power_system::plague_algo::generate_outage(&ps, outage_strs);
+    let outage_res = power_system::outage::generate_outage(&ps, outage_strs);
 
     match outage_res {
         Ok(outage) => {

@@ -2,15 +2,15 @@
 
 /// Used for adaptive step size control
 pub struct Controller {
-    alpha: f64,
-    beta: f64,
-    facc1: f64,
-    facc2: f64,
-    fac_old: f64,
-    h_max: f64,
+    alpha: f32,
+    beta: f32,
+    facc1: f32,
+    facc2: f32,
+    fac_old: f32,
+    h_max: f32,
     reject: bool,
-    safety_factor: f64,
-    posneg: f64,
+    safety_factor: f32,
+    posneg: f32,
 }
 
 impl Controller {
@@ -26,13 +26,13 @@ impl Controller {
     /// * `safety_factor`   - Safety factor of the PI controller
     ///
     pub fn new(
-        alpha: f64,
-        beta: f64,
-        fac_max: f64,
-        fac_min: f64,
-        h_max: f64,
-        safety_factor: f64,
-        posneg: f64,
+        alpha: f32,
+        beta: f32,
+        fac_max: f32,
+        fac_min: f32,
+        h_max: f32,
+        safety_factor: f32,
+        posneg: f32,
     ) -> Controller {
         Controller {
             alpha,
@@ -48,7 +48,7 @@ impl Controller {
     }
 
     /// Determines if the step must be accepted or rejected and adapts the step size accordingly.
-    pub fn accept(&mut self, err: f64, h: f64, h_new: &mut f64) -> bool {
+    pub fn accept(&mut self, err: f32, h: f32, h_new: &mut f32) -> bool {
         let fac11 = err.powf(self.alpha);
         let mut fac = fac11 * self.fac_old.powf(-self.beta);
         fac = (self.facc2).max((self.facc1).min(fac / self.safety_factor));
@@ -76,7 +76,7 @@ impl Controller {
     }
 
     /// Returns the maximum step size allowed.
-    pub fn h_max(&self) -> f64 {
+    pub fn h_max(&self) -> f32 {
         self.h_max
     }
 }
