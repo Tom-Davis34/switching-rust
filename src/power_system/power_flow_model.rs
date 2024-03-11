@@ -1,12 +1,11 @@
 use std::{
-    iter::{self, zip},
-    rc::{Rc, Weak},
+    collections::HashSet, iter::{self, zip}, rc::{Rc, Weak}
 };
 
 use crate::traits::C32;
 
 use super::{
-    plague_algo::{plague_algo, SigAlg, SimpleSigAlg},
+    plague_algo::{plague_algo, SigAlg, SimpleSigAlg, create_sigma_alg},
     DeltaU, Edge, EdgeData, EdgeIndex, NodeType, PowerSystem, PsNode, U,
 };
 
@@ -21,6 +20,7 @@ pub struct PfNode {
     pub is_load: bool,
     pub system_v: f32,
     pub unit_v: Option<C32>,
+    pub is_dead: bool,
     pub nodes: Vec<Rc<PsNode>>,
     pub edges: Vec<Weak<PfEdge>>,
 }
@@ -68,9 +68,11 @@ pub fn generate_pf_graph(ps: &PowerSystem, u: &Vec<U>) -> PfGraph {
         }
     };
 
-    let sig_alg = super::plague_algo::create_sigma_alg(&ps, &edge_is_quarantine);
+    let sig_alg = create_sigma_alg(&ps, &edge_is_quarantine);
 
-    let pf_nodes_temp = generate_pf_nodes(&sig_alg);
+    let live_nodes = find_live_nodes(ps, u);
+
+    let pf_nodes_temp = generate_pf_nodes(&sig_alg, &live_nodes);
 
     let pf_edges = generate_pf_edges(&ps, &sig_alg, &pf_nodes_temp);
 
@@ -101,7 +103,7 @@ pub fn generate_pf_graph(ps: &PowerSystem, u: &Vec<U>) -> PfGraph {
     let mut ps_edge_to_pf_edge = ps
         .nodes
         .iter()
-        .map(|n| None)
+        .map(|_n| None)
         .collect::<Vec<Option<Rc<PfEdge>>>>();
 
     for ele in pf_edges.iter() {
@@ -123,16 +125,29 @@ pub fn generate_pf_graph(ps: &PowerSystem, u: &Vec<U>) -> PfGraph {
     };
 }
 
+fn find_live_nodes(ps: &PowerSystem, u: &Vec<U>) -> HashSet<usize> {
+    let mut infected = vec![];
+    let slack_node = ps.nodes_iter().find(|n| n.n_type == NodeType::Sk).map(|n| n.index).unwrap(); 
+
+    let edge_is_quarantine = |index: EdgeIndex| {
+        index >= u.len() || u[index] == U::Open
+    };
+
+    let live_nodes = plague_algo(slack_node, &ps.adjacent_node, &mut infected, edge_is_quarantine);
+
+    return live_nodes.iter().map(usize::clone).collect();
+}
+
 fn generate_pf_edges(
     ps: &PowerSystem,
     sig_alg: &SimpleSigAlg,
-    pf_nodes: &Vec<Rc<PfNode>>,
+    pf_nodes: &Vec<Rc<PfNode>>
 ) -> Vec<Rc<PfEdge>> {
     let ps_node_to_pf_node = ps
         .nodes
         .iter()
         .enumerate()
-        .map(|(i, node)| pf_nodes[sig_alg.get_basis(node).index].clone())
+        .map(|(_i, node)| pf_nodes[sig_alg.get_basis(node).index].clone())
         .collect::<Vec<Rc<PfNode>>>();
 
     let edges: Vec<Rc<PfEdge>> = ps
@@ -159,7 +174,9 @@ fn generate_pf_edges(
     return edges;
 }
 
-fn generate_pf_nodes(sig_alg: &SimpleSigAlg) -> Vec<Rc<PfNode>> {
+fn generate_pf_nodes(
+    sig_alg: &SimpleSigAlg,
+    live_nodes: HashSet<usize>) -> Vec<Rc<PfNode>> {
     sig_alg
         .basis
         .iter()
@@ -182,6 +199,7 @@ fn generate_pf_nodes(sig_alg: &SimpleSigAlg) -> Vec<Rc<PfNode>> {
                     .map(|n| n.clone())
                     .collect::<Vec<Rc<PsNode>>>(),
                 edges: vec![],
+                is_dead: live_nodes.contains(&index),
             })
         })
         .collect::<Vec<Rc<PfNode>>>()
@@ -196,9 +214,9 @@ mod tests {
     const BRB_FILE_PATH: &str = "./grids/BRB/";
 
     #[test]
-    fn sigma_alg() {
+    fn create_() {
         let ps = PowerSystem::from_files(BRB_FILE_PATH);
 
-                
+              
     }
 }
