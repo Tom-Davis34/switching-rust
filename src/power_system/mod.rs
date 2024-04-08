@@ -236,7 +236,7 @@ impl PowerSystem {
             EdgeData::Sw(_) => true,
         };
 
-        let sigma = generate_sigma_alg(&adjacent_node, &edges, &nodes, &edge_is_quarantine);
+        let sigma = generate_sigma_alg(&adjacent_node, &nodes, &edge_is_quarantine);
 
         PowerSystem { 
             _nodes: file_contents.nodes, 
@@ -314,6 +314,12 @@ impl Edge {
         }
     }
 
+    pub fn admittance(&self) -> C32 {
+        match self.data {
+            EdgeData::Cir(ref cir) => cir.admittance,
+            EdgeData::Sw(ref sw) => C32::new(0.0, 0.0),
+        }
+    }
 
     pub fn quarantines_super_node(&self, u: &Option<&U>) -> bool {
         match self.data {

@@ -45,8 +45,8 @@ pub fn compute_transient_contri(
 }
 
 fn compute_contri(
-    ps: &PowerSystem,
-    results: &Result<TransientResults, TransientError>,
+    _ps: &PowerSystem,
+    _results: &Result<TransientResults, TransientError>,
 ) -> Vec<Contribution> {
     return vec![Contribution {
         contri_type: ContributionType::Transient,
@@ -56,8 +56,8 @@ fn compute_contri(
 }
 
 fn perform_transient(
-    ps: &PowerSystem,
-    u: &Vec<U>,
+    _ps: &PowerSystem,
+    _u: &Vec<U>,
 ) -> Result<TransientResults, TransientError> {
     return Err(TransientError::Msg("Not Implemented".to_string()));
 }

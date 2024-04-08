@@ -105,12 +105,11 @@ pub fn create_sigma_alg<F>(ps: &PowerSystem, edge_is_quarantine: &F) -> SimpleSi
 where
     F: Fn(EdgeIndex) -> bool,
 {
-    generate_sigma_alg(&ps.adjacent_node, &ps.edges, &ps.nodes, edge_is_quarantine)
+    generate_sigma_alg(&ps.adjacent_node, &ps.nodes, edge_is_quarantine)
 }
 
 pub fn generate_sigma_alg<F>(
     adjacent_node: &HashMap<usize, Vec<EdgePsNode>>,
-    edges: &Vec<Rc<Edge>>,
     nodes: &Vec<Rc<PsNode>>,
     edge_is_quarantine: &F,
 ) -> SimpleSigAlg
@@ -181,7 +180,7 @@ mod tests {
         };
 
         let sig: SimpleSigAlg =
-            generate_sigma_alg(&ps.adjacent_node, &ps.edges, &ps.nodes, &edge_is_quarantine);
+            generate_sigma_alg(&ps.adjacent_node,  &ps.nodes, &edge_is_quarantine);
 
         // println!("{:#?}", sig);
 

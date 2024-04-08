@@ -15,6 +15,8 @@ pub mod matrix_utils;
 pub mod power_system;
 pub mod a_star;
 pub mod utils;
+pub mod steady_state;
+pub mod graph;
 
 
 #[derive(Parser, Debug)]
@@ -58,7 +60,7 @@ fn run_astar(ps: &PowerSystem, outage: &Outage) -> AStar{
     println!("{}", astar_result.stats);
     match &astar_result.os {
         Some(os) => println!("OS:\n{}", os),
-        None => todo!(),
+        None => panic!(),
     }
     
 

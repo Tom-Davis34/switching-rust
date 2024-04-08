@@ -42,6 +42,8 @@ fn compute_contri(
     ps: &PowerSystem,
     results: &Result<SteadyStateResults, SteadyStateError>,
 ) -> Vec<Contribution> {
+
+    
     return vec![Contribution {
         contri_type: ContributionType::SteadyState,
         reason: "test".to_string(),

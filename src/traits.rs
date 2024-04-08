@@ -9,6 +9,8 @@ use std::{
 pub type C32 = Complex<f32>;
 pub type C64 = Complex<f64>;
 
+
+
 trait Printable{
     fn to_string(&self) -> String;
 }
