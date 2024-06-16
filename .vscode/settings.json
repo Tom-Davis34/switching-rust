@@ -6,4 +6,5 @@
     "./Cargo.toml"
 ],
 "rust-analyzer.showUnlinkedFileNotification": false,
+"tabnine.useProxySupport": false,
 }

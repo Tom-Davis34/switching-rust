@@ -54,7 +54,7 @@ fn main() {
 
 fn run_astar(ps: &PowerSystem, outage: &Outage) -> AStar{
     let astar = AStar::new();
-    let astar_result =  astar.run(ps, outage);
+    let astar_result =  astar.run_generate(ps, outage);
     // println!("{:#?}", ps);
     // println!("{:#?}", outage);
     println!("{}", astar_result.stats);
@@ -62,7 +62,6 @@ fn run_astar(ps: &PowerSystem, outage: &Outage) -> AStar{
         Some(os) => println!("OS:\n{}", os),
         None => panic!(),
     }
-    
 
     return astar_result;
 }

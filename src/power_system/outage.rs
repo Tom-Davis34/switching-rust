@@ -6,17 +6,17 @@ use std::{
     rc::Rc,
 };
 
-use super::{
-    plague_algo::{self, SigAlg, SigBasis, SimpleBasisEle, SimpleSigAlg},
-    DeltaU, Edge, EdgeData, EdgeIndex, EdgePsNode, NodeIndex, PowerSystem, PsNode, U,
-};
+use crate::graph::{plague_algo::SigBasis, NodeIndex, Edge, EdgeIndex};
+
+use super::{PsEdge, DeltaU, U, PowerSystem};
+
 
 #[derive(Debug, Clone)]
 pub struct Outage {
     pub in_outage: Vec<bool>,
-    pub basis: Vec<Rc<SimpleBasisEle>>,
-    pub edges_boundary: Vec<Edge>,
-    pub edges_inside: Vec<Edge>,
+    pub basis: Vec<Rc<SigBasis>>,
+    pub edges_boundary: Vec<PsEdge>,
+    pub edges_inside: Vec<PsEdge>,
     pub delta_u: Vec<DeltaU>,
     pub target_u: Vec<U>,
 }
@@ -50,8 +50,6 @@ impl Error for GenerateOutageError {
     }
 }
 
-
-
 pub fn generate_outage(
     ps: &PowerSystem,
     edge_names: Vec<String>,
@@ -64,33 +62,33 @@ pub fn generate_outage(
 
     let basis_eles_dups = edges
         .iter()
-        .flat_map(|f| vec![f.tbus.index, f.fbus.index])
-        .map(|node_index| ps.sigma.to_basis.get(node_index).unwrap().index)
+        .flat_map(|f| vec![f.info.tnode, f.info.fnode])
+        .map(|node_index| ps.sigma.to_basis.get(node_index.0).unwrap().index)
         .collect::<HashSet<usize>>();
 
     let basis_eles = basis_eles_dups
         .iter()
         .map(|i| ps.sigma.basis.get(*i).unwrap().clone())
-        .collect::<Vec<Rc<SimpleBasisEle>>>();
+        .collect::<Vec<Rc<SigBasis>>>();
 
     let outage_nodes = basis_eles
         .iter()
-        .flat_map(|be| be.nodes().iter().map(|n| n.index))
+        .flat_map(|be| be.nodes.iter().map(|n| *n))
         .collect::<Vec<NodeIndex>>();
 
     let mut edges_boundary = Vec::new();
     let mut edges_inside = Vec::new();
 
-    let target_u = zip(ps.switch_iter(), ps.start_u.iter())
-        .map(|(e, u)| {
-            if outage_nodes.contains(&e.fbus.index) != outage_nodes.contains(&e.tbus.index) {
+    let target_u = ps.edges().iter()
+        .map(|e| {
+            if outage_nodes.contains(&e.info.fnode) != outage_nodes.contains(&e.info.tnode) {
                 edges_boundary.push(e.clone());
                 return U::Open;
-            } else if outage_nodes.contains(&e.fbus.index) {
+            } else if outage_nodes.contains(&e.info.fnode) {
                 edges_inside.push(e.clone());
                 return U::DontCare;
             } else {
-                return u.clone();
+                return e.data.u.clone();
             }
         })
         .collect::<Vec<U>>();
@@ -99,19 +97,19 @@ pub fn generate_outage(
         .enumerate()
         .filter(|(_i, (tu, su))| tu != su)
         .map(|(index, (tu, _su))| DeltaU {
-            index: index,
+            index: EdgeIndex(index),
             new_u: *tu,
         })
         .collect::<Vec<DeltaU>>();
 
     Ok(Outage {
         in_outage: ps
-            .nodes_iter()
+            .ps_node_iter()
             .map(|n| outage_nodes.contains(&n.index))
             .collect(),
         basis: basis_eles,
-        edges_boundary: edges_boundary,
-        edges_inside: edges_inside,
+        edges_boundary: edges_boundary.iter().map(|e| e.data.clone()).collect(),
+        edges_inside: edges_inside.iter().map(|e| e.data.clone()).collect(),
         delta_u: delta_u,
         target_u: target_u,
     })
@@ -120,11 +118,11 @@ pub fn generate_outage(
 fn get_edge_from_edge_names(
     edge_names: Vec<String>,
     ps: &PowerSystem,
-) -> Result<Vec<Rc<Edge>>, GenerateOutageError> {
+) -> Result<Vec<Edge<'_, PsEdge>>, GenerateOutageError> {
     let edges_opt = edge_names
         .iter()
         .map(|en| ps.get_edge_by_name(en))
-        .collect::<Vec<Option<&Rc<Edge>>>>();
+        .collect::<Vec<Option<Edge<'_, PsEdge>>>>();
 
     let errs = zip(&edge_names, &edges_opt)
         .filter(|(_name, opt_index)| opt_index.is_none())
@@ -138,8 +136,7 @@ fn get_edge_from_edge_names(
     let edges = edges_opt
         .into_iter()
         .map(Option::unwrap)
-        .map(Rc::clone)
-        .collect::<Vec<Rc<Edge>>>();
+        .collect::<Vec<Edge<'_, PsEdge>>>();
 
     Ok(edges)
 }

@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use chrono::{Duration, Utc, DateTime};
 
+use crate::traits::C32;
+
 pub struct PrettyDuration(pub Duration);
 
 impl Display for PrettyDuration {
@@ -15,4 +17,8 @@ pub fn duration(start_time: &Option<DateTime<Utc>>, end_time: &Option<DateTime<U
         Some(val) => end_time.map(|end_t| end_t.signed_duration_since(val)),
         None => None,
     }
+}
+
+pub fn is_zero(c: &C32) -> bool {
+    c.re == 0.0 && c.im == 0.0 
 }

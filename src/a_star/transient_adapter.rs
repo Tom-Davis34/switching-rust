@@ -22,7 +22,7 @@ pub struct TransientResults {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct TransientAdapter {
+pub struct TransientContri {
     pub duration: Duration,
     pub contri: Vec<Contribution>,
     pub result: Result<TransientResults, TransientError>,
@@ -31,13 +31,13 @@ pub struct TransientAdapter {
 pub fn compute_transient_contri(
     ps: &PowerSystem,
     u: &Vec<U>,
-) -> TransientAdapter {
+) -> TransientContri {
     let start_time = Utc::now();
     let result = perform_transient(ps, u);
     let contri = compute_contri(ps, &result);
     let duration = Utc::now().signed_duration_since(start_time);
 
-    return TransientAdapter {
+    return TransientContri {
         duration,
         contri,
         result,

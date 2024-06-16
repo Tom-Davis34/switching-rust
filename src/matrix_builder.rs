@@ -10,9 +10,8 @@ pub trait MatBuilder<T>
 where
     T: Scalar + Zero + AddAssign,
 {
-    fn add(self: Self, row: usize, col: usize, ele: T) -> Self;
-    fn add_mut(&mut self, row: usize, col: usize, ele: T);
-    fn build(self: Self) -> Result<CsrMatrix<T>, SparseFormatError>;
+    fn add(&mut self, row: usize, col: usize, ele: T);
+    fn build(&self) -> Result<CsrMatrix<T>, SparseFormatError>;
 }
 
 pub struct ColEle<T> {
@@ -58,41 +57,7 @@ impl<T> MatBuilder<T> for CsrMatBuilder<T>
 where
     T: Scalar + Zero + AddAssign,
 {
-    fn add(mut self: Self, row: usize, col: usize, ele: T) -> Self {
-        if row >= self.row_num {
-            panic!("row is {} but is expected to be less than {}", row, self.row_num);
-        } 
-        if col >= self.col_num {
-            panic!("row is {} but is expected to be less than {}", col, self.col_num );
-        }
-
-        if ele.is_zero() {
-            return self;
-        }
-
-        match self.rows.get_mut(row) {
-            Some(vec) => {
-                let opt_cell = vec.iter_mut().find(|val| val.col == col);
-
-                match opt_cell {
-                    Some(cell) => {
-                        cell.ele += ele;
-                        return self;
-                    }
-                    None => {
-                        vec.push(ColEle { col: col, ele: ele });
-                        return self;
-                    }
-                }
-            }
-            None => {
-                self.rows.insert(row, vec![ColEle { col: col, ele: ele }]);
-                return self;
-            }
-        }
-    }
-
-    fn add_mut(&mut self, row: usize, col: usize, ele: T) {
+    fn add(&mut self, row: usize, col: usize, ele: T) {
         if ele.is_zero() {
             return;
         }
@@ -119,7 +84,7 @@ where
         }
     }
 
-    fn build(self: Self) -> Result<CsrMatrix<T>, SparseFormatError> {
+    fn build(&self) -> Result<CsrMatrix<T>, SparseFormatError> {
         let mut cursor = 0;
 
         let row_offset = self.rows.iter().fold(vec![0], |mut vec, cols_ele| {
@@ -219,12 +184,12 @@ mod tests {
             .expect("CSR data must conform to format specifications");
 
         let mut mat_builder = CsrMatBuilder::<f32>::new(3, 4);
-        mat_builder = mat_builder.add(0, 0, 1.0);
-        mat_builder = mat_builder.add(0, 1, 2.0);
-        mat_builder = mat_builder.add(0, 3, 1.0);
-        mat_builder = mat_builder.add(0, 3, 2.0);
-        mat_builder = mat_builder.add(2, 1, 4.0);
-        mat_builder = mat_builder.add(2, 2, 5.0);
+        mat_builder.add(0, 0, 1.0);
+        mat_builder.add(0, 1, 2.0);
+        mat_builder.add(0, 3, 1.0);
+        mat_builder.add(0, 3, 2.0);
+        mat_builder.add(2, 1, 4.0);
+        mat_builder.add(2, 2, 5.0);
 
         let actual_csr = mat_builder.build().unwrap();
 
@@ -257,13 +222,13 @@ mod tests {
         let expected_csr = CsrMatrix::try_from_csr_data(3, 4, row_offsets, col_indices, values)
             .expect("CSR data must conform to format specifications");
 
-        let mat_builder = CsrMatBuilder::<C32>::new(3, 4)
-            .add(0, 0, C32::new(1.0, 0.0))
-            .add(0, 1, C32::new(2.0, 0.0))
-            .add(0, 3, C32::new(1.0, 0.0))
-            .add(0, 3, C32::new(2.0, 0.0))
-            .add(2, 1, C32::new(4.0, 0.0))
-            .add(2, 2, C32::new(5.0, 0.0));
+        let mut mat_builder = CsrMatBuilder::<C32>::new(3, 4);
+        mat_builder.add(0, 0, C32::new(1.0, 0.0));
+        mat_builder.add(0, 1, C32::new(2.0, 0.0));
+        mat_builder.add(0, 3, C32::new(1.0, 0.0));
+        mat_builder.add(0, 3, C32::new(2.0, 0.0));
+        mat_builder.add(2, 1, C32::new(4.0, 0.0));
+        mat_builder.add(2, 2, C32::new(5.0, 0.0));
 
         let actual_csr = mat_builder.build().unwrap();
 

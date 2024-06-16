@@ -1,2 +1,0 @@
-fbus	tbus   isopen
-1       2      1  

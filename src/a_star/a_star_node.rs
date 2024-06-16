@@ -9,8 +9,8 @@ use std::{
 use crate::power_system::{DeltaU, PowerSystem, U};
 
 use super::{
-    steady_state_adapter::{SteadyStateContri, SteadyStateError, SteadyStateResults},
-    transient_adapter::{TransientAdapter, TransientError, TransientResults},
+    steady_state_adapter::SteadyStateContri,
+    transient_adapter::{TransientContri, TransientError, TransientResults},
 };
 
 pub type HeapNode = Rc<RefCell<AStarNode>>;
@@ -37,7 +37,7 @@ pub enum NodeState {
     Finished,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AStarNode {
     pub display: String,
     pub state: NodeState,
@@ -46,7 +46,7 @@ pub struct AStarNode {
     pub delta_u: Option<DeltaU>,
     pub h: f32,
     pub steady_state_contri: Option<SteadyStateContri>,
-    pub transient_contri: Option<TransientAdapter>,
+    pub transient_contri: Option<TransientContri>,
     pub contribution: Vec<Contribution>,
     pub depth: usize,
     pub objective: f32,
@@ -101,8 +101,8 @@ impl PartialOrd for AStarNode {
 impl AStarNode {
     fn create_display(delta_u: &Option<DeltaU>, ps: &PowerSystem) -> String {
         match delta_u {
-            Some(u) => {
-                format!("{:?} {}", u.new_u, ps.edges[u.index].name)
+            Some(du) => {
+                format!("{:?} {}", du.new_u, ps.get_edge(du.index).data.name)
             }
             None => "START".to_string(),
         }
@@ -164,7 +164,7 @@ impl AStarNode {
         self.state = NodeState::SteadyStateCalculated;
     }
 
-    pub fn add_transient(&mut self, contris: TransientAdapter) {
+    pub fn add_transient(&mut self, contris: TransientContri) {
         assert!(self.state == NodeState::SteadyStateCalculated);
 
         contris.contri.iter().for_each(|con| {

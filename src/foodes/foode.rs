@@ -154,10 +154,9 @@ mod tests {
     fn test_integrate_1() {
         let tolerance = 1.0E-6;
         let dvec = State::repeat(1, 0.5);
-        let mat = CsrMatBuilder::<f32>::new(1, 1)
-            .add(0, 0, 1.0)
-            .build()
-            .unwrap();
+        let mut mat_builder = CsrMatBuilder::<f32>::new(1, 1);
+        mat_builder.add(0, 0, 1.0);
+        let mat = mat_builder.build().unwrap();
 
         let mut solvers = Solvers::new(0.0, 1.0, 0.1, dvec, tolerance, mat, t_squared_plus_one);
 
@@ -175,13 +174,12 @@ mod tests {
     fn test_integrate_2() {
         let tolerance = 1.0E-6;
         let dvec = State::repeat(2, 0.5);
-        let mat = CsrMatBuilder::<f32>::new(2, 2)
-            .add(0, 0, 1.0)
-            .add(0, 1, 2.0)
-            .add(1, 0, 4.0)
-            .add(1, 1, 3.0)
-            .build()
-            .unwrap();
+        let mut mat_builder = CsrMatBuilder::<f32>::new(2, 2);
+        mat_builder.add(0, 0, 1.0);
+        mat_builder.add(0, 1, 2.0);
+        mat_builder.add(1, 0, 4.0);
+        mat_builder.add(1, 1, 3.0);
+        let mat = mat_builder.build().unwrap();
 
         let mut solvers = Solvers::new(0.0, 1.0, 0.1, dvec, tolerance, mat, forcing_fn_2);
 

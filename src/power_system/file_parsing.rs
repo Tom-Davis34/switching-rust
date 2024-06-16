@@ -12,6 +12,9 @@ pub fn parse_ps(path: &str) -> FileParseResults {
     let gens: Vec<Gen> = gens_strs.iter().map(|s| Gen::from_row(&s)).collect();
 
     let bus_strs = read_file(path, FILE_NAME_BUSES);
+
+    let start_u = parse_start_u(path, FILE_NAME_SWITCHES, FILE_NAME_CIRCUITS);
+
     let ps_nodes: Vec<PsNode> = bus_strs
         .iter()
         .enumerate()
@@ -20,30 +23,28 @@ pub fn parse_ps(path: &str) -> FileParseResults {
     let ps_nodes_rc: Vec<Rc<PsNode>> = ps_nodes.iter().map(|f| Rc::new(f.clone())).collect();
 
     let switch_strs: Vec<String> = read_file(path, FILE_NAME_SWITCHES);
-    let mut switches: Vec<Edge> = switch_strs
+    let mut switches: Vec<FileEdge> = switch_strs
         .iter()
         .enumerate()
-        .map(|s| Edge::from_switch_row(s, &ps_nodes_rc))
+        .map(|s| PsEdge::from_switch_row(s, &ps_nodes_rc, &start_u))
         .collect();
     // let switches_rc: Vec<Rc<Switch>> = switches.iter().map(|f| Rc::new(f.clone())).collect();
 
     let cicuits_strs = read_file(path, FILE_NAME_CIRCUITS);
-    let mut cicuits: Vec<Edge> = cicuits_strs
+    let mut cicuits: Vec<FileEdge> = cicuits_strs
         .iter()
         .enumerate()
         .map(|s| (s.0, s.1) )
-        .map(|s| Edge::from_circuit_row(s, &ps_nodes_rc, switches.len()))
+        .map(|s| PsEdge::from_circuit_row(s, &ps_nodes_rc, switches.len(), &start_u))
         .collect();
     // let cicuits_rc: Vec<Rc<Circuit>> = cicuits.iter().map(|f| Rc::new(f.clone())).collect();
 
     switches.append(&mut cicuits);
 
-    let start_u = parse_start_u(path, FILE_NAME_SWITCHES);
 
     FileParseResults {
         nodes: ps_nodes,
         edges: switches,
-
         start_u: start_u,
     }
 }
@@ -51,8 +52,15 @@ pub fn parse_ps(path: &str) -> FileParseResults {
 #[derive(Debug, Clone)]
 pub struct FileParseResults {
     pub nodes: Vec<PsNode>,
-    pub edges: Vec<Edge>,
+    pub edges: Vec<FileEdge>,
     pub start_u: Vec<U>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct FileEdge{
+    pub(super) edge: PsEdge,
+    pub(super) tbus: NodeIndex,
+    pub(super) fbus: NodeIndex,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -77,7 +85,7 @@ where
 
 fn read_file(path: &str, name: &str) -> Vec<String> {
     fs::read_to_string(path.to_owned() + name)
-        .expect(&("Cannot find file".to_owned() + name))
+        .expect(&("Cannot find file ".to_owned() + path + name))
         .lines()
         .skip(1)
         .map(|f| f.to_string())
@@ -92,10 +100,11 @@ fn find_node(num: usize, nodes: &Vec<Rc<PsNode>>) -> Rc<PsNode> {
         .expect(&format!("Cannot find node with num = {}", num))
 }
 
-fn parse_start_u(path: &str, name: &str) -> Vec<U> {
-    let switch_strs = read_file(path, name);
+fn parse_start_u(path: &str, name_switches: &str, name_circuits: &str) -> Vec<U> {
+    let switch_strs = read_file(path, name_switches);
+    let circuit_strs = read_file(path, name_circuits);
 
-    switch_strs
+    let mut res = switch_strs
         .iter()
         .map(|s| {
             split_whitespace(s)
@@ -104,7 +113,11 @@ fn parse_start_u(path: &str, name: &str) -> Vec<U> {
                 .unwrap()
         })
         .map(|b| if b { U::Open } else { U::Closed })
-        .collect()
+        .collect::<Vec<U>>();
+
+    circuit_strs.iter().for_each(|_str| res.push(U::DontCare));
+
+    return res;
 }
 
 impl Gen {
@@ -119,8 +132,8 @@ impl Gen {
     }
 }
 
-impl Edge {
-    fn from_circuit_row(s: (usize, &String), nodes: &Vec<Rc<PsNode>>, swicth_num: usize) -> Self {
+impl PsEdge {
+    fn from_circuit_row(s: (usize, &String), nodes: &Vec<Rc<PsNode>>, swicth_num: usize, _start_u: &Vec<U>) -> FileEdge {
         let cells = split_whitespace(s.1);
 
         let fbus_num = parse::<usize>(&cells, 0);
@@ -134,16 +147,21 @@ impl Edge {
             line_charge: parse::<f32>(&cells, 4),
         };
 
-        Edge {
-            index: s.0 + swicth_num,
-            name: format!("Cir{:?}", s.0),
-            fbus: fbus,
-            tbus: tbus,
-            data: EdgeData::Cir(cir),
+
+        FileEdge {
+            edge: PsEdge {
+                index: EdgeIndex(s.0 + swicth_num),
+                name: format!("Cir{:?}", s.0),
+                u: U::DontCare,
+                data: EdgeData::Cir(cir),
+            },
+            fbus: fbus.index,
+            tbus: tbus.index,
         }
+
     }
 
-    fn from_switch_row(s: (usize, &String), nodes: &Vec<Rc<PsNode>>) -> Self {
+    fn from_switch_row(s: (usize, &String), nodes: &Vec<Rc<PsNode>>, start_u: &Vec<U>) -> FileEdge {
         let cells = split_whitespace(s.1);
 
         let fbus_num = parse::<usize>(&cells, 0);
@@ -156,17 +174,20 @@ impl Edge {
         let sw = Switch { is_cb: is_cb };
 
         
-
-        Edge {
-            index: s.0,
-            name: match is_cb {
-                true => format!("CB{:?}", s.0),
-                false => format!("Dis{:?}", s.0),
+        FileEdge {
+            edge: PsEdge {
+                index: EdgeIndex(s.0),
+                name: match is_cb {
+                    true => format!("CB{:?}", s.0),
+                    false => format!("Dis{:?}", s.0),
+                },
+                u: start_u[s.0],
+                data: EdgeData::Sw(sw),
             },
-            fbus: fbus,
-            tbus: tbus,
-            data: EdgeData::Sw(sw),
+            fbus: fbus.index,
+            tbus: tbus.index,
         }
+        
     }
 }
 
@@ -204,7 +225,7 @@ impl PsNode {
         let system_v = parse::<f32>(&cells, 9);
 
         PsNode {
-            index: s.0,
+            index: NodeIndex(s.0),
             num: num,
             load: load,
             gen: gen,

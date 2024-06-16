@@ -1,1 +1,1 @@
-fbus	tbus	r	x	b	rateA	rateB	rateC	ratio	angle	status	angmin	angmax
+fbus tbus	r	    x	     b	     rateA	 rateB	 rateC	 ratio	 angle	 status angmin	angmax

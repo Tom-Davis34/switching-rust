@@ -3,9 +3,9 @@ use std::{cell::RefCell, collections::BinaryHeap, fmt::{Binary, Debug, Display},
 use chrono::{DateTime, Utc, Duration};
 use nalgebra::uninit::Init;
 
-use crate::{power_system::{self, DeltaU, PowerSystem, U, outage::Outage}, a_star::a_star_node::NodeState, utils::{duration, PrettyDuration}};
+use crate::{power_system::{self, DeltaU, PowerSystem, U, outage::Outage}, a_star::a_star_node::NodeState, utils::{duration, PrettyDuration}, graph::EdgeIndex};
 
-use self::{a_star_node::{AStarNode, HeapNode, Contribution}, steady_state_adapter::SteadyStateContri, transient_adapter::TransientAdapter};
+use self::{a_star_node::{AStarNode, HeapNode, Contribution}, steady_state_adapter::SteadyStateContri, transient_adapter::TransientContri};
 
 pub mod a_star_node;
 mod steady_state_adapter;
@@ -13,15 +13,7 @@ mod transient_adapter;
 
 const HAMMING_DIST_SCALE: f32 = 10.0;
 
-// pub struct Os {
-//     pub osis: Vec<Osi>,
-// }
 
-// impl Debug for Osi {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{}", self.display)
-//     }
-// }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct OS(Vec<HeapNode>);
@@ -97,7 +89,6 @@ impl Display for AStarStats {
     }
 }
 
-
 #[derive(Debug)]
 pub struct AStar {
     pub stats: AStarStats,
@@ -121,15 +112,27 @@ impl AStar {
             os: None,
         };
     }
+    
 
-    pub fn run(mut self, ps: &PowerSystem, outage: &Outage) -> Self {
+    pub fn run_evaluate(mut self, ps: &PowerSystem, delta_u: Vec<DeltaU>) -> Self {
         self.stats.start_time = Some(Utc::now());
 
-        let start_h = HAMMING_DIST_SCALE * U::hamming_dist(&outage.target_u, &ps.start_u);
+        let mut target_u = ps.start_u.clone();
+        for ele in delta_u.iter() {
+            target_u[ele.index.0] = ele.new_u;
+        }
+
+        let start_h = HAMMING_DIST_SCALE * U::hamming_dist(&target_u, &ps.start_u);
         let root: HeapNode = Rc::new(RefCell::new(AStarNode::new(None, None, start_h, ps)));
         self.heap.push(root);
 
-        let best_fit = self.main_loop(ps, &outage.target_u);
+        let du_creator = |_actual_u: &Vec<U>, heap_node: &HeapNode| {
+            let depth = heap_node.borrow().depth;
+
+            vec![delta_u[depth - 1].clone()]
+        };   
+
+        let best_fit = self.main_loop(ps, &target_u, du_creator);
 
         let os_heap_nodes = AStarNode::get_nodes(&best_fit).iter().filter(|n| n.borrow().delta_u.is_some()).map(|n| n.clone()).collect::<Vec<HeapNode>>();
         
@@ -140,7 +143,35 @@ impl AStar {
         self
     }
 
-    fn main_loop(&mut self, ps: &PowerSystem, target_du: &Vec<U>) -> HeapNode {
+    pub fn run_generate(mut self, ps: &PowerSystem, outage: &Outage) -> Self {
+        self.stats.start_time = Some(Utc::now());
+
+        let start_h = HAMMING_DIST_SCALE * U::hamming_dist(&outage.target_u, &ps.start_u);
+        let root: HeapNode = Rc::new(RefCell::new(AStarNode::new(None, None, start_h, ps)));
+        self.heap.push(root);
+
+        let du_creator = |actual_u: &Vec<U>, _heap_node: &HeapNode| {
+            actual_u.iter().enumerate().map(|(index, u)| {
+                DeltaU {
+                    index: EdgeIndex(index),
+                    new_u: u.not(),
+                }
+            })
+            .collect::<Vec<DeltaU>>()
+        };                    
+
+        let best_fit = self.main_loop(ps, &outage.target_u, du_creator);
+
+        let os_heap_nodes = AStarNode::get_nodes(&best_fit).iter().filter(|n| n.borrow().delta_u.is_some()).map(|n| n.clone()).collect::<Vec<HeapNode>>();
+        
+        self.os = Some(OS(os_heap_nodes));
+
+        self.stats.end_time = Some(Utc::now());
+
+        self
+    }
+
+    fn main_loop<F>(&mut self, ps: &PowerSystem, target_du: &Vec<U>, du_creater: F) -> HeapNode where F: Fn(&Vec<U>, &HeapNode) -> Vec<DeltaU> {
 
         loop {
             let current_node = self.heap.pop().unwrap();
@@ -151,16 +182,17 @@ impl AStar {
                 return current_node;
             }
 
-            self.handle_node(current_node, ps, &target_du);
+            self.handle_node(current_node, ps, &target_du, &du_creater);
         }
     }
 
-    fn handle_node(
+    fn handle_node<F>(
         &mut self,
         current_node: HeapNode,
         ps: &PowerSystem,
-        target_du: &Vec<U>
-    ) {
+        target_du: &Vec<U>,
+        du_creater: F
+    ) where F: Fn(&Vec<U>, &HeapNode) -> Vec<DeltaU> {
         let state = current_node.borrow().state.clone();
 
         match state {
@@ -168,7 +200,15 @@ impl AStar {
                 self.stats.ss_num += 1;
 
                 let u = create_u_from_node(ps, &current_node);
-                let contri = steady_state_adapter::compute_ss_contri(ps, &u);
+                let delta_u = current_node.borrow().delta_u.clone();
+                let previous = &current_node.borrow().parent;
+                let contri = steady_state_adapter::compute_ss_contri(
+                    ps, 
+                    &u, 
+                    &delta_u, 
+                    &previous
+                );
+
                 self.stats.ss_duration = self.stats.ss_duration.add(contri.duration);
                 current_node.borrow_mut().add_steady_state(contri);
                 
@@ -189,22 +229,18 @@ impl AStar {
 
                 self.stats.total_nodes += (actual_u.len() - 1) as u32;
 
-                for index in 0..actual_u.len() {
-                    let u = actual_u[index];
+                let dus = du_creater(&actual_u, &current_node);
 
-                    let not_u = DeltaU {
-                        index,
-                        new_u: u.not(),
-                    };
-
-                    actual_u[index] = u.not();
+                for du in dus.iter() {
+                    let temp_u = actual_u[du.index.0];
+                    actual_u[du.index.0] = du.new_u;
                     let new_node = AStarNode::new(
                         Some(current_node.clone()),
-                        Some(not_u.clone()),
+                        Some(du.clone()),
                         HAMMING_DIST_SCALE * U::hamming_dist(&target_du, &actual_u),
                         ps,
                     );
-                    actual_u[index] = u;
+                    actual_u[du.index.0] = temp_u;
 
                     self.heap.push(Rc::new(RefCell::new(new_node)));
                 }
@@ -226,17 +262,19 @@ impl Display for AStar {
     }
 }
 
+
+
 fn create_u_from_node(ps: &PowerSystem, node: &HeapNode) -> Vec<U> {
     let mut u = ps.start_u.clone();
     AStarNode::get_delta_u(node)
         .iter()
-        .for_each(|du: &DeltaU| u[du.index] = du.new_u);
+        .for_each(|du: &DeltaU| u[du.index.0] = du.new_u);
     return u;
 }
 
 fn create_u_from_parent(ps: &PowerSystem, parent: &HeapNode, new_delta_u: DeltaU) -> Vec<U> {
     let mut u = create_u_from_node(ps, parent);
-    u[new_delta_u.index] = new_delta_u.new_u;
+    u[new_delta_u.index.0] = new_delta_u.new_u;
 
     return u;
 }

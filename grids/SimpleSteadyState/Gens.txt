@@ -1,0 +1,2 @@
+bus	Pg	Qg	Qmax	Qmin	Vg	mBase	status	Pmax	Pmin
+2	 45.0	 10.0	 0.0	 1.0	 100.0	 1	 271	 0.0     0.0

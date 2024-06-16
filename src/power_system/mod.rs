@@ -1,34 +1,40 @@
 use std::cmp;
-use std::fmt;
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::hash::Hash;
+use std::iter::Filter;
 use std::iter::zip;
 use std::rc::Rc;
 use std::slice::Iter;
 use std::str::FromStr;
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::hash::Hash;
 
-use crate::traits::C32;
+use crate::graph::AdjacentInfo;
+use crate::graph::Edge;
+use crate::graph::EdgeIndex;
+use crate::graph::Graph;
+use crate::graph::NodeIndex;
+use crate::graph::plague_algo::SigAlg;
+use crate::graph::plague_algo::plague_algo_pure;
 use crate::power_system::EdgeData::Cir;
 use crate::power_system::EdgeData::Sw;
+use crate::traits::C32;
 
-use self::plague_algo::generate_sigma_alg;
-use self::plague_algo::SimpleSigAlg;
+use crate::graph::plague_algo::generate_sigma_alg;
+
+use self::file_parsing::FileEdge;
 
 mod file_parsing;
-pub mod plague_algo;
-pub mod power_flow_model;
 pub mod outage;
-
-type EdgeIndex = usize;
-type NodeIndex = usize;
+pub mod power_flow_model;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum U{
+pub enum U {
     Open,
     Closed,
-    DontCare
+    DontCare,
 }
 
 impl fmt::Display for U {
@@ -38,19 +44,29 @@ impl fmt::Display for U {
 }
 
 impl U {
-    pub fn hamming_dist(target_u: &Vec<U>, actual_u: &Vec<U>) -> f32{
+    pub fn hamming_dist(target_u: &Vec<U>, actual_u: &Vec<U>) -> f32 {
         zip(target_u.iter(), actual_u.iter())
-        .map(|(t_u, a_u)| {
-            match t_u {
-                U::Open => if a_u == &U::Closed {1.0} else {0.0},
-                U::Closed => if a_u == &U::Open {1.0} else {0.0},
+            .map(|(t_u, a_u)| match t_u {
+                U::Open => {
+                    if a_u == &U::Closed {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
+                U::Closed => {
+                    if a_u == &U::Open {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
                 U::DontCare => 0.0,
-            }
-        })
-        .sum()
+            })
+            .sum()
     }
 
-    pub fn not(&self) -> U{
+    pub fn not(&self) -> U {
         match self {
             U::Open => U::Closed,
             U::Closed => U::Open,
@@ -59,9 +75,11 @@ impl U {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy)]
 pub enum NodeType {
-	PQ, PV, Sk 
+    PQ,
+    PV,
+    Sk,
 }
 
 impl Ord for NodeType {
@@ -104,7 +122,7 @@ impl Ord for NodeType {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DeltaU {
-    pub index: usize,
+    pub index: EdgeIndex,
     pub new_u: U,
 }
 
@@ -118,7 +136,7 @@ impl Display for DeltaU {
 pub struct ParseError;
 
 #[derive(PartialEq, Clone)]
-pub struct PsNode{
+pub struct PsNode {
     pub num: usize,
     pub index: NodeIndex,
     pub load: C32,
@@ -128,7 +146,7 @@ pub struct PsNode{
 }
 
 #[derive(Debug, Clone)]
-pub struct Switch{
+pub struct Switch {
     pub is_cb: bool,
 }
 
@@ -139,21 +157,20 @@ pub struct Circuit {
 }
 
 #[derive(Clone)]
-pub struct Edge{
+pub struct PsEdge {
     pub index: EdgeIndex,
     pub name: String,
-    pub fbus: Rc<PsNode>,
-    pub tbus: Rc<PsNode>,
+    pub u: U,
     pub data: EdgeData,
 }
 
 #[derive(Clone)]
-pub enum EdgeData{
+pub enum EdgeData {
     Cir(Circuit),
     Sw(Switch),
 }
 
-impl PartialEq for EdgeData{
+impl PartialEq for EdgeData {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Cir(_), Self::Cir(_)) => true,
@@ -163,148 +180,166 @@ impl PartialEq for EdgeData{
     }
 }
 
-#[derive(Clone)]
-pub struct EdgePsNode{
-    edge: Rc<Edge>,
-    node: Rc<PsNode>
-}
-
-#[derive(Clone)]
 pub struct PowerSystem {
-    _nodes: Vec<PsNode>,
-    _edges: Vec<Edge>,
-    _switches: Vec<Edge>,
-
-    pub nodes: Vec<Rc<PsNode>>,
-    pub edges: Vec<Rc<Edge>>,
-
+    pub g: Graph<PsNode, PsEdge>,
     pub start_u: Vec<U>,
 
-    pub edges_names: HashMap<String, Rc<Edge>>,
-
-    pub sigma: SimpleSigAlg,
-
-    pub adjacent_node: HashMap<NodeIndex, Vec<EdgePsNode>>,
+    pub edges_names: HashMap<String, EdgeIndex>,
+    pub slack_node_index: NodeIndex,
+    pub sigma: SigAlg,
 }
 
 impl PowerSystem {
-    pub fn from_files(path: &str) -> PowerSystem {
+    pub fn from_files(path: &str) -> Self {
         let file_contents = file_parsing::parse_ps(path);
 
-        let nodes: Vec<Rc<PsNode>> = file_contents.nodes.iter().map(|n| Rc::from(n.clone())).collect();
-        let edges: Vec<Rc<Edge>> = file_contents.edges.iter().map(|e| Rc::from(e.clone())).collect();
+        let nodes: Vec<PsNode> = file_contents
+            .nodes
+            .iter()
+            .map(|n| n.clone())
+            .collect();
 
-        let adjacent_node = nodes.iter().map(|node| {
-            
-            let edge_map = edges.iter()
-            .filter(|edge| edge.connected_to(node))
-            .map(|edge| EdgePsNode{ edge: Rc::from(edge.clone()), node: edge.other_node(node).unwrap() } )
-            .collect::<Vec<EdgePsNode>>();
+        let edges: Vec<FileEdge> = file_contents
+            .edges
+            .iter()
+            .map(|e| e.clone())
+            .collect();
 
-            (node.index, edge_map)
-        }).collect::<HashMap<NodeIndex, Vec<EdgePsNode>>>();
+        let slack_node_index = nodes.iter().find(|pn| pn.n_type == NodeType::Sk).map(|pn| pn.index).unwrap();
 
-        let mut edges_names: HashMap<String, Rc<Edge>> = HashMap::new();
+        let mut edges_names: HashMap<String, EdgeIndex> = HashMap::new();
 
-        edges.iter().filter(|ed| {
-            match &ed.data {
+        edges
+            .iter()
+            .filter(|ed| match &ed.edge.data {
                 Cir(_) => false,
                 Sw(sw) => sw.is_cb,
-            }
-        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &(num + 1).to_string(), ed.clone());});
+            })
+            .enumerate()
+            .for_each(|(num, ed)| {
+                edges_names.insert(
+                    ed.edge.data.get_type().to_string() + &(num + 1).to_string(),
+                    ed.edge.index.clone()
+                );
+            });
 
-        edges.iter().filter(|ed| {
-            match &ed.data {
+        edges
+            .iter()
+            .filter(|ed| match &ed.edge.data {
                 Cir(_) => false,
                 Sw(sw) => !sw.is_cb,
-            }
-        }).enumerate().for_each(|(num, ed)| {edges_names.insert(ed.data.get_type().to_string() + &(num + 1).to_string(), ed.clone());});
+            })
+            .enumerate()
+            .for_each(|(num, ed)| {
+                edges_names.insert(
+                    ed.edge.data.get_type().to_string() + &(num + 1).to_string(),
+                    ed.edge.index,
+                );
+            });
 
-        edges.iter().filter(|ed| {
-            match ed.data {
+        edges
+            .iter()
+            .filter(|ed| match ed.edge.data {
                 Cir(_) => true,
                 Sw(_) => false,
-            }
-        }).enumerate().for_each(|(num, ed)| {edges_names.insert( ed.data.get_type().to_string() + &(num + 1).to_string(), ed.clone());});
+            })
+            .enumerate()
+            .for_each(|(num, ed)| {
+                edges_names.insert(
+                    ed.edge.data.get_type().to_string() + &(num + 1).to_string(),
+                    ed.edge.index,
+                );
+            });
 
-
-        let switches = file_contents.edges.iter().filter(Edge::is_switch).map(Edge::clone).collect::<Vec<Edge>>();
-
-
-        let edge_is_quarantine = |index: EdgeIndex| match edges.get(index).unwrap().data {
+        let edge_is_quarantine = |index: EdgeIndex| match edges[index.0].edge.data {
             EdgeData::Cir(_) => false,
             EdgeData::Sw(_) => true,
         };
 
-        let sigma = generate_sigma_alg(&adjacent_node, &nodes, &edge_is_quarantine);
+        let mut graph = Graph::empty_graph();
+        nodes.iter().for_each(|pn| {
+            graph.add_node(pn.clone());
+        });
 
-        PowerSystem { 
-            _nodes: file_contents.nodes, 
-            _edges: file_contents.edges, 
-            _switches: switches, 
-            start_u: file_contents.start_u, 
-            nodes: nodes,
-            edges: edges,
-            adjacent_node: adjacent_node,
+        edges.iter().for_each(|fe| {
+            graph.add_edge(fe.edge.clone(), fe.fbus, fe.tbus);
+        });
+
+        let sigma = generate_sigma_alg(&graph, &edge_is_quarantine);
+
+        PowerSystem {
+            g: graph,
+            start_u: file_contents.start_u,
             edges_names: edges_names,
+            slack_node_index: slack_node_index,
             sigma,
         }
     }
 
-    fn get_neighbors(&self, node_index: &usize) -> &Vec<EdgePsNode> {
-        self.adjacent_node.get(node_index).unwrap()
+    pub fn get_neighbors(&self, node_index: NodeIndex) -> &Vec<AdjacentInfo> {
+        self.g.get_adjacency_info(node_index)
     }
 
-    fn nodes_iter(&self) -> Iter<'_, PsNode> {
-        self._nodes.iter()
-    } 
-
-    fn switch_iter(&self) -> Iter<'_, Edge> {
-        self._switches.iter()
+    pub fn ps_node_iter(&self) -> Iter<'_, PsNode> {
+        self.g.node_data.iter()
     }
 
-    fn edges_iter(&self) -> Iter<'_, Edge> {
-        self._edges.iter()
+    pub fn ps_edge_iter(&self) -> Iter<'_, PsEdge> {
+        self.g.edge_data.iter()
     }
 
-    pub fn get_edge_by_name(&self, name: &String) -> Option<&Rc<Edge>> {
-        return self.edges_names.get(name);
+    pub fn edges(&self) -> Vec<Edge<'_, PsEdge>> {
+        self.g.edges()
+    }
+
+    pub fn get_edge(&self, edge_index: EdgeIndex) -> Edge<'_, PsEdge> {
+        self.g.get_edge(edge_index)
+    }
+
+    pub fn get_edge_by_name(&self, name: &String) -> Option<Edge<'_, PsEdge>> {
+        let edge_index = self.edges_names.get(name);
+        edge_index.map(|ind| self.g.get_edge(*ind))
+    }
+
+    pub fn create_sigma_alg<F>(&self, edge_is_quarantine: &F) -> SigAlg
+    where
+        F: Fn(EdgeIndex) -> bool,
+    {
+        generate_sigma_alg(&self.g, edge_is_quarantine)
+    }
+
+    pub fn node_count(&self) -> usize{
+        self.g.get_node_count()
+    }
+
+    pub fn live_nodes(&self, u_vec: &Vec<U>) -> HashSet<NodeIndex> {
+        plague_algo_pure(self.slack_node_index, &self.g, |ei| !self.g.edge_data[ei.0].conducts(&u_vec[ei.0])).iter().map(|ni| ni.clone()).collect()
     }
 }
 
-
 impl Display for Switch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Switch").field("is_cb", &self.is_cb.to_string()).finish()
+        f.debug_struct("Switch")
+            .field("is_cb", &self.is_cb.to_string())
+            .finish()
     }
 }
 
 impl Display for Circuit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Circuit").field("admittance", &self.admittance.to_string()).field("line_charge", &self.line_charge).finish()
+        f.debug_struct("Circuit")
+            .field("admittance", &self.admittance.to_string())
+            .field("line_charge", &self.line_charge)
+            .finish()
     }
 }
 
-impl Edge {
-    pub fn connected_to(&self, node: &PsNode) -> bool {
-         self.tbus.as_ref() == node || self.fbus.as_ref() == node 
-    }
-
-    pub fn other_node(&self, node: &PsNode) -> Option<Rc<PsNode>>{
-        if self.tbus.as_ref() == node {
-            Some(self.fbus.clone())
-        } else if self.fbus.as_ref() == node {
-            Some(self.tbus.clone())
-        } else {
-            None
-        }
-    }
-
+impl PsEdge {
     pub fn conducts(&self, u: &U) -> bool {
         match self.data {
             EdgeData::Cir(_) => true,
-            EdgeData::Sw(_) => u != &U::Open
-        } 
+            EdgeData::Sw(_) => u != &U::Open,
+        }
     }
 
     pub fn is_switch(self: &&Self) -> bool {
@@ -317,41 +352,64 @@ impl Edge {
     pub fn admittance(&self) -> C32 {
         match self.data {
             EdgeData::Cir(ref cir) => cir.admittance,
-            EdgeData::Sw(ref sw) => C32::new(0.0, 0.0),
+            EdgeData::Sw(_) => C32::new(0.0, 0.0),
+        }
+    }
+
+    pub fn line_charge(&self) -> f32 {
+        match self.data {
+            EdgeData::Cir(ref cir) => cir.line_charge,
+            EdgeData::Sw(_) => 0.0,
         }
     }
 
     pub fn quarantines_super_node(&self, u: &Option<&U>) -> bool {
         match self.data {
             EdgeData::Cir(_) => true,
-            EdgeData::Sw(_) => u.unwrap() == &U::Open
-        } 
+            EdgeData::Sw(_) => u.unwrap() == &U::Open,
+        }
     }
 }
 
-impl Debug for Edge {
+impl Debug for PsEdge {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.data {
-            EdgeData::Cir(c) => f.debug_struct("Edge").field("type", &self.data.get_type().to_string()).field("tbus", &self.tbus.num).field("fbus", &self.fbus.num).field("admittance", &c.admittance.to_string()).field("line_c", &c.line_charge).finish(),
-            EdgeData::Sw(_) => f.debug_struct("Edge").field("type", &self.data.get_type().to_string()).field("tbus", &self.tbus.num).field("fbus", &self.fbus.num).finish(),
+            EdgeData::Cir(c) => f
+                .debug_struct("Edge")
+                .field("type", &self.data.get_type().to_string())
+                .field("admittance", &c.admittance.to_string())
+                .field("line_c", &c.line_charge)
+                .finish(),
+            EdgeData::Sw(_) => f
+                .debug_struct("Edge")
+                .field("type", &self.data.get_type().to_string())
+                .finish(),
         }
     }
 }
 
 impl Debug for PsNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PsNode").field("num", &self.num).field("load", &self.load.to_string()).field("gen", &self.gen.to_string()).finish()
+        f.debug_struct("PsNode")
+            .field("num", &self.num)
+            .field("load", &self.load.to_string())
+            .field("gen", &self.gen.to_string())
+            .finish()
     }
 }
 
 impl Debug for PowerSystem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PowerSystem").field("nodes", &self._nodes).field("edges", &self._edges).field("start_u", &self.start_u).finish()
+        f.debug_struct("PowerSystem")
+            .field("nodes", &self.g.node_data)
+            .field("edges", &self.g.edge_data)
+            .field("start_u", &self.start_u)
+            .finish()
     }
 }
 
-impl EdgeData {  
-    fn get_type(&self) -> &str{
+impl EdgeData {
+    fn get_type(&self) -> &str {
         match &self {
             EdgeData::Cir(_) => "Cir",
             EdgeData::Sw(s) => {
@@ -360,14 +418,8 @@ impl EdgeData {
                 } else {
                     "Dis"
                 }
-            },
+            }
         }
-    }
-}
-
-impl Debug for EdgePsNode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EdgePsNode").field("node", &self.node.num).field("edge", &self.edge).finish()
     }
 }
 
@@ -375,33 +427,49 @@ impl Debug for EdgePsNode {
 mod tests {
     use super::*;
 
-    const BRB_FILE_PATH: &str = "./grids/BRB/"; 
+    const BRB_FILE_PATH: &str = "./grids/BRB/";
 
     #[test]
-    fn brb_gens(){
+    fn brb_gens() {
         let ps = PowerSystem::from_files(BRB_FILE_PATH);
 
         println!("BRB {:#?}", ps);
 
-        let expected_gens = HashMap::from([(27, C32{re: 45.0, im: 10.0})]);
+        let expected_gens = HashMap::from([(27, C32 { re: 45.0, im: 10.0 })]);
 
-        ps._nodes.iter().enumerate().for_each(|(i, node)| {
-            assert_eq!(expected_gens.get(&(i + 1)).unwrap_or(&C32{re:0.0, im:0.0}), &node.gen);
+        ps.ps_node_iter().enumerate().for_each(|(i, node)| {
+            assert_eq!(
+                expected_gens
+                    .get(&(i + 1))
+                    .unwrap_or(&C32 { re: 0.0, im: 0.0 }),
+                &node.gen
+            );
         })
     }
 
     #[test]
-    fn brb_loads(){
+    fn brb_loads() {
         let ps = PowerSystem::from_files(BRB_FILE_PATH);
 
         let expected_loads = HashMap::from([
-            (5, C32{re: 25.0, im: 5.0}),
-            (25, C32{re: 25.0, im: 5.0}),
-            (26, C32{re: 250.0, im: 80.0}),
-            ]);
+            (5, C32 { re: 25.0, im: 5.0 }),
+            (25, C32 { re: 25.0, im: 5.0 }),
+            (
+                26,
+                C32 {
+                    re: 250.0,
+                    im: 80.0,
+                },
+            ),
+        ]);
 
-            ps._nodes.iter().enumerate().for_each(|(i, node)| {
-                assert_eq!(expected_loads.get(&(i + 1)).unwrap_or(&C32{re:0.0, im:0.0}), &node.load);
-            })
+        ps.ps_node_iter().enumerate().for_each(|(i, node)| {
+            assert_eq!(
+                expected_loads
+                    .get(&(i + 1))
+                    .unwrap_or(&C32 { re: 0.0, im: 0.0 }),
+                &node.load
+            );
+        })
     }
 }
