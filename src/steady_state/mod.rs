@@ -31,32 +31,50 @@ pub struct SteadyStateResults {
 fn create_sub_graph(ps: &PowerSystem, u_vec: &Vec<U>) -> (Graph<PsNode, PsEdge>, SubGraphMap){
     
     let live_nodes = ps.live_nodes(u_vec);
-    println!("live nodes {:#?}",live_nodes);
+    let dead_nodes = ps.dead_nodes(u_vec);
+
+    println!("dead_nodes {:?}",dead_nodes);
     let nm = |n: &PsNode| n.clone();
     let nf = |n: &PsNode| live_nodes.contains(&n.index);
     let em = |e: &PsEdge| e.clone();
     let mut subgraph_creator = CreateSubGraph::new(&ps.g, nm, nf, em);
 
     let edge_contraction_node_merge = |_e: &PsEdge, fnode: &PsNode, tnode: &PsNode | {
-        PsNode {
+        // println!("fnode {:?}", fnode);
+        // println!("tnode {:?}", tnode);
+        let load = match  fnode.num == tnode.num {
+            true => fnode.load,
+            false => fnode.load + tnode.load,
+        };
+
+        let gen = match  fnode.num == tnode.num {
+            true => fnode.gen,
+            false => fnode.gen + tnode.gen,
+        };
+
+        let res = PsNode {
             num: tnode.num,
             index: tnode.index,
-            load: fnode.load + tnode.load,
-            gen: fnode.gen + tnode.gen,
+            load: load,
+            gen: gen,
             system_v: tnode.system_v,
             n_type: fnode.n_type.max(tnode.n_type),
-        }
+        };
+        return res;
     };
 
-    let edge_contraction_edge_filter = |e: &PsEdge | { (e.is_switch() && e.u == U::Closed) ||  e.admittance().re == 0.0 && e.admittance().im == 0.0 };
+    let edge_contraction_edge_filter = |e: &PsEdge | { e.is_switch() && e.u == U::Closed };
 
     subgraph_creator.edge_contraction_filter(&edge_contraction_node_merge, &edge_contraction_edge_filter);
-    return subgraph_creator.complete();
+    let sub_g = subgraph_creator.complete();
+    // println!("sub_g {:?}",sub_g);
+    return sub_g;
 }
 
 pub fn steady_state_pf(ps: &PowerSystem, u_vec: &Vec<U>) -> Result<SteadyStateResults, SteadyStateError> {
 
     let (simplier_graph, sub) =  create_sub_graph(ps, u_vec);
+
     let sub_v = steady_state_solve(&simplier_graph)?;
 
     let super_v = map_to_super_v(&sub, &sub_v.v, ps.node_count());
@@ -68,7 +86,6 @@ pub fn steady_state_pf(ps: &PowerSystem, u_vec: &Vec<U>) -> Result<SteadyStateRe
         super_v: super_v,
         stats: SteadyStateStats { iter_count: sub_v.iter_count},
     })
-
 }
 
 fn map_to_super_v(sub: &SubGraphMap, sub_v: &DVector<C32>, super_size: usize) -> DVector<Option<C32>> {
@@ -95,8 +112,8 @@ mod tests {
         let u_vec = vec![U::DontCare, U::DontCare, U::DontCare];
         let (sub_graph, map) = super::create_sub_graph(&ps, &u_vec);
 
-        println!("sub_graph {:#?}", sub_graph);
-        println!("map {:#?}", map);
+        // println!("sub_graph {:#?}", sub_graph);
+        // println!("map {:#?}", map);
 
     }
 

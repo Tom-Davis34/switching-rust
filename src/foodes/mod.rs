@@ -4,11 +4,11 @@ use chrono::{Utc, DateTime, DurationRound, Duration};
 use nalgebra::OVector;
 use thiserror::Error;
 
-mod butcher_tableau;
-mod controller;
-mod dop853;
+pub mod butcher_tableau;
+pub mod controller;
+pub mod dop853;
 mod dopri5;
-mod foode;
+pub mod foode;
 mod rk4;
 
 /// Trait needed to be implemented by the user.

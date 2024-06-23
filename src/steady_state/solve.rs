@@ -1,10 +1,12 @@
 
 
+use std::cmp::Ordering;
+
 use nalgebra::DVector;
 use nalgebra_sparse::{CsrMatrix, ops::{Op, serial::spmm_csr_dense}};
 use num_traits::Float;
 
-use crate::{graph::{Graph, NodeIndex, Edge}, power_system::{PsEdge, PsNode, NodeType}, traits::C32, matrix_builder::{CsrMatBuilder, MatBuilder}, utils::is_zero};
+use crate::{graph::{Graph, NodeIndex, Edge}, power_system::{PsEdge, PsNode, NodeType}, traits::C32, matrix_builder::{CsrMatBuilder, MatBuilder}, utils::is_zero, matrix_utils::print_mat_as_dense};
 
 use super::SteadyStateError;
 
@@ -21,7 +23,7 @@ pub struct SteadyStateSolve{
 pub fn steady_state_solve(graph: &Graph<PsNode, PsEdge>) -> Result<SteadyStateSolve, SteadyStateError>{
     let node_count = graph.get_node_count();
     let pq: DVector<C32> = DVector::<C32>::from_fn(node_count, |r, _c| {graph.get_node(NodeIndex(r)).data.gen - graph.get_node(NodeIndex(r)).data.load});
-    let slack_node = graph.node_data.iter().find(|nd| nd.n_type == NodeType::Sk).unwrap();
+    let slack_node = graph.node_data.iter().enumerate().find(|nd| nd.1.n_type == NodeType::Sk).map(|nd|nd.0).unwrap();
     // let pv_nodes = graph.node_data.iter().enumerate().filter(|nd| nd.1.n_type == NodeType::PV).map(|n| n.0).collect::<Vec<usize>>();
     let (mat_y, diag_y) = create_adm_mat(node_count, graph);
 
@@ -36,17 +38,20 @@ pub fn steady_state_solve(graph: &Graph<PsNode, PsEdge>) -> Result<SteadyStateSo
             return Err(SteadyStateError::NonConvergence); 
         }
 
+        // println!("curr_v {:#?}", curr_v);
+
         //TODO update pq
-        let new_v = new_voltage(&curr_v, &pq, &mat_y, &diag_inv_y, node_count, slack_node.index.0);
-        let manhattan_max = new_v.iter().map(|c| c.l1_norm()).max_by(|a,b| a.partial_cmp(b).unwrap()).unwrap();
+        let new_v = new_voltage(&curr_v, &pq, &mat_y, &diag_inv_y, node_count, slack_node);
+        // println!("newv_v {:#?}", new_v);
+        let manhattan_max = new_v.iter().map(|c| c.l1_norm()).max_by(|a,b| a.partial_cmp(b).unwrap_or(Ordering::Less)).unwrap();
 
         if manhattan_max > DETECT_DIVERGENCE {
             return Err(SteadyStateError::Divergence);
         }
 
         let norm = find_diff_norm(&curr_v, &new_v);
-
-        if norm > TOLERANCE {
+        // println!("norm {:?}", norm);
+        if norm < TOLERANCE{
             return Ok(SteadyStateSolve{
                 v: new_v,
                 iter_count: iter,
@@ -71,6 +76,10 @@ fn new_voltage(v: &DVector<C32>, pq: &DVector<C32>, mat_y: &CsrMatrix<C32>, diag
     let mut new_v: DVector<C32> = DVector::<C32>::from_fn(node_count, |r, _c| { 
         let mut res = -temp_vec[r];
 
+        //TODO remove dirty hack.
+        // if res.is_nan() {
+        //     res = C32::new(0.0, 0.0);
+        // } else 
         if !is_zero(&pq[r]) {
             res += pq[r].conj() / v[r];
         }

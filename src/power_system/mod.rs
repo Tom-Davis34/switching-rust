@@ -30,6 +30,8 @@ mod file_parsing;
 pub mod outage;
 pub mod power_flow_model;
 
+const BASE_POWER:f32 = 100.0;  
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum U {
     Open,
@@ -314,6 +316,12 @@ impl PowerSystem {
 
     pub fn live_nodes(&self, u_vec: &Vec<U>) -> HashSet<NodeIndex> {
         plague_algo_pure(self.slack_node_index, &self.g, |ei| !self.g.edge_data[ei.0].conducts(&u_vec[ei.0])).iter().map(|ni| ni.clone()).collect()
+    }
+
+    pub fn dead_nodes(&self, u_vec: &Vec<U>) -> HashSet<NodeIndex> {
+        let live_nodes = self.live_nodes(u_vec);
+
+        return self.ps_node_iter().enumerate().filter(|i_n| !live_nodes.contains(&NodeIndex(i_n.0))).map(|i_n| NodeIndex(i_n.0)).collect::<HashSet<NodeIndex>>();
     }
 }
 

@@ -2,15 +2,16 @@ use nalgebra::Complex;
 use nalgebra_sparse::{csr::CsrMatrix, CooMatrix, SparseFormatError};
 use num_complex::{Complex32, Complex64};
 use num_traits::Zero;
-use std::{collections::HashMap, ops::AddAssign, panic};
+use std::{collections::HashMap, ops::{AddAssign, DivAssign}, panic};
 
 use nalgebra::Scalar;
 
 pub trait MatBuilder<T>
 where
-    T: Scalar + Zero + AddAssign,
+    T: Scalar + Zero + AddAssign + DivAssign,
 {
     fn add(&mut self, row: usize, col: usize, ele: T);
+    fn set(&mut self, row: usize, col: usize, ele: T);
     fn build(&self) -> Result<CsrMatrix<T>, SparseFormatError>;
 }
 
@@ -55,7 +56,7 @@ where
 
 impl<T> MatBuilder<T> for CsrMatBuilder<T>
 where
-    T: Scalar + Zero + AddAssign,
+    T: Scalar + Zero + AddAssign + DivAssign, 
 {
     fn add(&mut self, row: usize, col: usize, ele: T) {
         if ele.is_zero() {
@@ -82,6 +83,34 @@ where
                 return;
             }
         }
+    }
+
+    fn set(&mut self, row: usize, col: usize, ele: T) {
+        if ele.is_zero() {
+            return;
+        }
+
+        match self.rows.get_mut(row) {
+            Some(vec) => {
+                let opt_cell = vec.iter_mut().find(|val| val.col == col);
+
+                match opt_cell {
+                    Some(cell) => {
+                        cell.ele = ele;
+                        return;
+                    }
+                    None => {
+                        vec.push(ColEle { col: col, ele });
+                        return;
+                    }
+                }
+            }
+            None => {
+                self.rows.insert(row, vec![ColEle { col: col, ele: ele }]);
+                return;
+            }
+        }
+
     }
 
     fn build(&self) -> Result<CsrMatrix<T>, SparseFormatError> {
@@ -117,6 +146,26 @@ where
             col_indices,
             values,
         );
+    }
+}
+
+impl<T> CsrMatBuilder<T> 
+where
+    T: Scalar + Zero + AddAssign,
+    {
+    pub fn mut_map<F>(&mut self, f: F)
+        where F: Fn(usize, usize, &T) -> T
+    {
+        for row in 0..self.row_num {
+            let col_ele_num = self.rows[row].len();
+
+            for col in 0..col_ele_num {
+                self.rows[row][col] = ColEle {
+                    col: col,
+                    ele: f(row, col, &self.rows[row][col].ele)
+                }
+            }
+        }
     }
 }
 
@@ -193,10 +242,10 @@ mod tests {
 
         let actual_csr = mat_builder.build().unwrap();
 
-        println!("expected_csr");
-        print_mat_as_dense(&expected_csr);
-        println!("actual_csr");
-        print_mat_as_dense(&actual_csr);
+        // println!("expected_csr");
+        // print_mat_as_dense(&expected_csr);
+        // println!("actual_csr");
+        // print_mat_as_dense(&actual_csr);
 
         // println!("{:?}",expected_csr);
         // println!("{:?}",actual_csr);

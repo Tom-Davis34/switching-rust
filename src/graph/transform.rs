@@ -26,22 +26,32 @@ impl SubGraphMap {
         }
     }
 
-    fn add_node_indices(&mut self, super_indices: Vec<NodeIndex>, merge_indices: Vec<Vec<NodeIndex>>) {
-        self.to_supergraph_nodes = super_indices.iter().map(|ni| vec![ni.clone()]).collect();
+    fn add_node_indices(&mut self, to_supergraph_nodes: &Vec<Vec<NodeIndex>>) {
+        // self.to_supergraph_nodes = super_indices.iter().map(|ni| vec![ni.clone()]).collect();
 
-        self.to_supergraph_nodes
-            .iter()
-            .enumerate()
-            .for_each(|(sub_index, super_index)| {
-                self.to_subgraph_node[super_index[0].0] = Some(NodeIndex(sub_index));
-            });
+        // self.to_supergraph_nodes
+        //     .iter()
+        //     .enumerate()
+        //     .for_each(|(sub_index, super_index)| {
+        //         self.to_subgraph_node[super_index[0].0] = Some(NodeIndex(sub_index));
+        //                     });
 
-        for (super_node_index, ele) in merge_indices.iter().enumerate() {
-            if self.to_subgraph_node[super_node_index].is_some() {
-                let sub_node = self.to_subgraph_node[super_node_index].unwrap();
-                self.to_supergraph_nodes[sub_node.0].extend(ele);
+        // for (super_node_index, ele) in merge_indices.iter().enumerate() {
+        //     if self.to_subgraph_node[super_node_index].is_some() {
+        //         let sub_node = self.to_subgraph_node[super_node_index].unwrap();
+        //         self.to_supergraph_nodes[sub_node.0].extend(ele);
+        //     }
+        // }
+
+        self.to_supergraph_nodes = to_supergraph_nodes.to_vec();
+
+        for (sub_index, super_indices) in self.to_supergraph_nodes.iter().enumerate() {
+            for super_index in super_indices.iter() {
+                self.to_subgraph_node[super_index.0] = Some(NodeIndex(sub_index));
             }
         }
+
+        
     }
 
     fn add_edge_indices(&mut self, super_indices: Vec<EdgeIndex>) {
@@ -161,7 +171,10 @@ where
             })
             .collect::<Vec<Option<NodeIndex>>>();
 
-        self.merged_indices = self.old_graph.node_data.iter().map(|_f| vec![]).collect();
+        self.merged_indices = self.to_subgraph_node.iter().enumerate().map(|(index, node)| match node {
+            Some(_) => vec![NodeIndex(index)],
+            None => vec![],
+        }).collect();
 
         self.to_subgraph_edge = self
             .old_graph
@@ -180,6 +193,8 @@ where
 
         self.nodes = self.old_graph.nodes.iter().map(|n| n.clone()).collect();
         self.edges = self.old_graph.edges.iter().map(|e| e.clone()).collect();
+
+        // let blah = 0.0;
     }
 
     pub fn edge_contraction_filter<NM, EF>(&mut self, node_merge: &NM, edge_filter: &EF)
@@ -214,19 +229,25 @@ where
                 &self.node_data[node_index],
             );
         } else {
-            let edge_info = self.edges[self.to_subgraph_edge[edge_index.0].unwrap().0];
-
+            let edge_info: EdgeInfo = self.edges[self.to_subgraph_edge[edge_index.0].unwrap().0];
+            // println!("{:?}", edge_info);
             self.to_subgraph_edge[edge_index.0] = None;
 
             let node_to_keep = edge_info.tnode;
             let node_to_discard = edge_info.fnode;
-
+            // println!("{:?} -> {:?}", node_to_discard, node_to_keep);
             self.to_subgraph_node[node_to_discard.0] = None;
             let clon = self.merged_indices[node_to_discard.0].clone();
             self.merged_indices[node_to_keep.0].extend(clon);
-            self.merged_indices[node_to_keep.0].push(node_to_discard);
+            self.merged_indices[node_to_discard.0] = vec![];
 
-            self.nodes[node_to_discard.0].adjacent = self.nodes[node_to_discard.0]
+            // self.nodes.iter().for_each(|n| {
+            //     n.adjacent.iter_mut().for_each(|ajc| {
+            //         if ajc.node_index == 
+            //     })
+            // });
+
+            self.nodes[node_to_keep.0].adjacent = self.nodes[node_to_keep.0]
                 .adjacent
                 .iter()
                 .chain(self.nodes[node_to_discard.0].adjacent.iter())
@@ -237,9 +258,12 @@ where
             let adjacenies_to_fix = self.nodes[node_to_discard.0]
                 .adjacent
                 .iter()
-                .filter(|adj_info| adj_info.edge_index != edge_index)
+                // .filter(|adj_info| adj_info.edge_index != edge_index)
                 .map(|adj_info| adj_info.clone())
                 .collect::<Vec<AdjacentInfo>>();
+
+                // println!("adjacenices {:?}", adjacenies_to_fix);
+                // println!("");
 
             adjacenies_to_fix.iter().for_each(|adj| {
                 self.nodes[adj.node_index.0]
@@ -257,30 +281,47 @@ where
                     self.edges[adj.edge_index.0].fnode = node_to_keep
                 }
             });
-
+            
             self.node_data[node_to_keep.0] = node_merge(
                 &self.edge_data[edge_index.0],
                 &self.node_data[node_to_discard.0],
                 &self.node_data[node_to_keep.0],
             );
+
+            // println!("Edges {:?}", self.edges);
+            // println!("");
+            // println!("Edges dead {:?}", self.to_subgraph_edge);
+            // println!("");
+            // println!("=========");
         }
     }
 
-    pub fn complete(self) -> (Graph<N, E>, SubGraphMap) {
+    pub fn complete(mut self) -> (Graph<N, E>, SubGraphMap) {
         let mut g = Graph::<N, E>::empty_graph();
 
+        // println!("to_subgraph_node {:?}", self.to_subgraph_node);
+        // println!("to_subgraph_node {:?}", self.to_subgraph_node);
+
+        // println!("merge_indies {:?}", self.merged_indices);
+
+        self.merged_indices.iter().enumerate().for_each(|(sub_index, super_indices)|{
+            super_indices.iter().for_each(|super_index| {
+                // println!("self.to_subgraph_node {:?}", self.to_subgraph_node);
+                self.to_subgraph_node[super_index.0] = Some(NodeIndex(sub_index));
+            })
+        });
+
+        let to_supergraph_nodes = self.merged_indices.iter().filter(|v| v.len() > 0 ).map(|v| v.clone()).collect();
+
+        // println!("self.to_subgraph_node {:?}", self.to_subgraph_node);
+
         let mut subgraph_map = SubGraphMap::new(
-            self.old_graph.node_data.len(),
+            self.old_graph.get_node_count(),
             self.old_graph.edge_data.len(),
         );
 
         subgraph_map.add_node_indices(
-            self.to_subgraph_node
-                .iter()
-                .filter(|opt_index| opt_index.is_some())
-                .map(|opt_index| opt_index.unwrap())
-                .collect(),
-                self.merged_indices
+            &to_supergraph_nodes
         );
 
         subgraph_map.add_edge_indices(
@@ -291,10 +332,11 @@ where
                 .collect(),
         );
 
-        let contracted_nodes = zip(self.node_data, self.to_subgraph_node)
-            .filter(|(_nd, opt)| opt.is_some())
-            .map(|(nd, _opt)| nd.clone())
-            .collect();
+        let contracted_nodes = self.merged_indices
+        .iter()
+        .enumerate()
+        .filter(|(_index, vec)| vec.len() > 0)
+        .map(|(index, _vec)| self.node_data[index].clone()).collect::<Vec<N>>();
 
         g.add_all_nodes(contracted_nodes);
 
@@ -306,12 +348,6 @@ where
                     //do nothing
                 } else {
                     let edge_info = self.edges[super_index];
-
-                    println!("edge super_index {:?}", super_index);
-                    println!("edge edge_info.tnode {:?}", edge_info.tnode);
-                    println!("edge to_subgraph_node {:?}", subgraph_map.to_subgraph_node);
-                    println!("==");
-                    println!("edge to_supergraph_nodes {:?}", subgraph_map.to_supergraph_nodes);
                     let sub_fnode = subgraph_map.get_sub_node(edge_info.fnode).unwrap();
                     let sub_tnode = subgraph_map.get_sub_node(edge_info.tnode).unwrap();
 

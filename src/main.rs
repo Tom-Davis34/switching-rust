@@ -28,7 +28,7 @@ struct Args {
     #[arg(short, long, default_value_t = String::from("./grids/BRB/"))]
     ps: String,
 
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::from("Dis8"))]
     outage: String,
 }   
 

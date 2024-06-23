@@ -9,6 +9,7 @@ use self::{a_star_node::{AStarNode, HeapNode, Contribution}, steady_state_adapte
 
 pub mod a_star_node;
 mod steady_state_adapter;
+mod transient;
 mod transient_adapter;
 
 const HAMMING_DIST_SCALE: f32 = 10.0;
@@ -34,7 +35,7 @@ impl Display for LogHeapNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let node = self.0.borrow();
 
-        writeln!(f, "Display:            {}", node.display)?;
+        writeln!(f, "OSI:                {}", node.display)?;
         writeln!(f, "State:              {:?}", node.state)?;
         writeln!(f, "H:                  {:?}", node.h)?;
         writeln!(f, "Objective:          {:?}", node.objective)?;
@@ -46,7 +47,14 @@ impl Display for LogHeapNode {
             Some(tc) => writeln!(f, "Transient Contri:   {:?}", tc.contri.iter().map(|c| c.amount).sum::<f32>())?,
             None => {},
         }            
-        writeln!(f, "Depth:              {:?}", node.depth)
+        writeln!(f, "Depth:              {:?}", node.depth)?;
+        writeln!(f, "Contribution:")?;
+
+        for ele in node.contribution.iter() {
+            writeln!(f, "    {:?} -> {:?}", ele.reason, ele.amount)?;
+        }
+
+        return write!(f, "")
     }
 }
 
@@ -151,7 +159,7 @@ impl AStar {
         self.heap.push(root);
 
         let du_creator = |actual_u: &Vec<U>, _heap_node: &HeapNode| {
-            actual_u.iter().enumerate().map(|(index, u)| {
+            actual_u.iter().enumerate().filter(|(_index, u)| u!=&&U::DontCare).map(|(index, u)| {
                 DeltaU {
                     index: EdgeIndex(index),
                     new_u: u.not(),
@@ -198,15 +206,13 @@ impl AStar {
         match state {
             a_star_node::NodeState::Init => {
                 self.stats.ss_num += 1;
-
+                
                 let u = create_u_from_node(ps, &current_node);
                 let delta_u = current_node.borrow().delta_u.clone();
-                let previous = &current_node.borrow().parent;
                 let contri = steady_state_adapter::compute_ss_contri(
                     ps, 
                     &u, 
-                    &delta_u, 
-                    &previous
+                    &delta_u
                 );
 
                 self.stats.ss_duration = self.stats.ss_duration.add(contri.duration);

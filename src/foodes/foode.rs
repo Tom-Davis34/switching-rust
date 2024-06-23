@@ -7,9 +7,40 @@ use nalgebra::{
 use nalgebra_sparse::csr::{CsrMatrix, CsrRow};
 use nalgebra_sparse::ops::serial::spmm_csr_dense;
 use nalgebra_sparse::ops::Op;
+use num_traits::Float;
+
+const PI:f32 = 3.14159265359;
 
 pub type State = DVector<f32>;
 pub type Time = f32;
+
+
+#[derive(Debug, Clone)]
+
+pub struct TransientSolve {
+    pub gen_curr_index: usize,
+    pub a: CsrMatrix<f32>,
+    pub a_tilder: CsrMatrix<f32>,
+    pub b: Vec<f32>,
+    pub switch_time: f32,
+}
+
+impl System<State> for TransientSolve {
+    fn system(&self, x: f32, y: &State, dy: &mut State) {
+        let forcing_term = ((2.0 * PI)*x*50.0).sin();
+        
+        let gen_curr = self.b.iter().map(|bv| bv*forcing_term).collect::<Vec<f32>>();
+
+        for index in 0..gen_curr.len() {
+            dy[index + self.gen_curr_index] += gen_curr[index];
+        } 
+        if x < self.switch_time {
+            spmm_csr_dense(0.0, dy, 1.0, Op::NoOp(&self.a), Op::NoOp(y));
+        } else {
+            spmm_csr_dense(0.0, dy, 1.0, Op::NoOp(&self.a_tilder), Op::NoOp(y));
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Foode {

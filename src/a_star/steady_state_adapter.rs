@@ -22,7 +22,6 @@ fn disconnectors(
     ps: &PowerSystem,
     results: &SteadyStateResults,
     delta_u: &Option<DeltaU>,
-    _previous: &Option<HeapNode>,
 ) -> Vec<Contribution> {
     match delta_u {
         None => vec![],
@@ -58,7 +57,6 @@ fn voltage(
     _ps: &PowerSystem,
     results: &SteadyStateResults,
     _delta_u: &Option<DeltaU>,
-    _previous: &Option<HeapNode>,
 ) -> Vec<Contribution> {
     results.super_v.iter().enumerate().map(|(index,opt_v)| {
         opt_v.map(|v| {
@@ -95,7 +93,6 @@ fn blackout(
     ps: &PowerSystem,
     results: &SteadyStateResults,
     _delta_u: &Option<DeltaU>,
-    _previous: &Option<HeapNode>,
 ) -> Vec<Contribution> {
     ps.ps_node_iter().enumerate().filter_map(|(index, ps_node)| {
         if !ps_node.load.is_zero() && results.super_v[index].map_or(true, |v| v.is_zero()) {
@@ -139,13 +136,12 @@ pub fn compute_ss_contri(
     ps: &PowerSystem,
     u_vec: &Vec<U>,
     delta_u: &Option<DeltaU>,
-    parent: &Option<HeapNode>,
 ) -> SteadyStateContri {
     let start_time = Utc::now();
     let results = steady_state::steady_state_pf(ps, u_vec);
 
     let contri = match &results {
-        Ok(ss_results) => compute_contri(ps, &ss_results, delta_u, parent),
+        Ok(ss_results) => compute_contri(ps, &ss_results, delta_u),
         Err(error) => error_contri(error.clone()),
     };
     let duration = Utc::now().signed_duration_since(start_time);
@@ -161,19 +157,17 @@ fn compute_contri(
     ps: &PowerSystem,
     results: &SteadyStateResults,
     delta_u: &Option<DeltaU>,
-    previous: &Option<HeapNode>,
 ) -> Vec<Contribution> {
     let fns: Vec<
         fn(
             &PowerSystem,
             &SteadyStateResults,
             &Option<DeltaU>,
-            &Option<HeapNode>,
         ) -> Vec<Contribution>,
     > = vec![disconnectors, voltage, blackout];
 
     fns.iter()
-        .flat_map(|f| f(ps, results, delta_u, previous).iter().map(|c| c.clone()).collect::<Vec<Contribution>>())
+        .flat_map(|f| f(ps, results, delta_u).iter().map(|c| c.clone()).collect::<Vec<Contribution>>())
         .collect::<Vec<Contribution>>()
 }
 

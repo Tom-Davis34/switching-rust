@@ -7,7 +7,10 @@ use chrono::Utc;
 use crate::a_star::a_star_node::Contribution;
 use crate::a_star::a_star_node::ContributionType;
 use crate::foodes::Stats;
+use crate::foodes::foode::State;
 use crate::power_system::{PowerSystem, U};
+
+const ERROR_CONTRI: f32 = 10000.0;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TransientError {
@@ -15,17 +18,17 @@ pub enum TransientError {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct TransientResults {
+pub struct TransientSolution {
     pub stats: Stats,
-    pub t: Vec<f64>,
-    pub out: Vec<Vec<f64>>,
+    pub t: Vec<f32>,
+    pub out: Vec<State>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TransientContri {
     pub duration: Duration,
     pub contri: Vec<Contribution>,
-    pub result: Result<TransientResults, TransientError>,
+    pub result: Result<TransientSolution, TransientError>,
 }
 
 pub fn compute_transient_contri(
@@ -33,8 +36,9 @@ pub fn compute_transient_contri(
     u: &Vec<U>,
 ) -> TransientContri {
     let start_time = Utc::now();
-    let result = perform_transient(ps, u);
-    let contri = compute_contri(ps, &result);
+    // let result: Result<TransientSolution, TransientError> = perform_transient(ps, u);
+    let result: Result<TransientSolution, TransientError> = Err(TransientError::Msg("sdf".to_string()));
+    let contri = create_tranient_contri(ps, &result);
     let duration = Utc::now().signed_duration_since(start_time);
 
     return TransientContri {
@@ -44,20 +48,37 @@ pub fn compute_transient_contri(
     };
 }
 
-fn compute_contri(
-    _ps: &PowerSystem,
-    _results: &Result<TransientResults, TransientError>,
+
+fn create_tranient_contri(
+    ps: &PowerSystem,
+    results: &Result<TransientSolution, TransientError>,
 ) -> Vec<Contribution> {
-    return vec![Contribution {
-        contri_type: ContributionType::Transient,
-        reason: "transient-test".to_string(),
-        amount: 0.0,
-    }];
+    match results {
+        Ok(soln) => compute_contri(ps, soln),
+        Err(err) => error_contri(err),
+    }
 }
 
-fn perform_transient(
-    _ps: &PowerSystem,
-    _u: &Vec<U>,
-) -> Result<TransientResults, TransientError> {
-    return Err(TransientError::Msg("Not Implemented".to_string()));
+fn compute_contri(
+    ps: &PowerSystem,
+    results: &TransientSolution,
+) -> Vec<Contribution> {
+    let fns: Vec<
+        fn(
+            &PowerSystem,
+            &TransientSolution,
+        ) -> Vec<Contribution>,
+    > = vec![];
+
+    fns.iter()
+        .flat_map(|f| f(ps, results).iter().map(|c| c.clone()).collect::<Vec<Contribution>>())
+        .collect::<Vec<Contribution>>()
+}
+
+fn error_contri(error: &TransientError) -> Vec<Contribution> {
+    return vec![Contribution {
+        contri_type: ContributionType::Transient,
+        reason: format!("Transient Pf failed: {:?}", error),
+        amount: ERROR_CONTRI,
+    }];
 }

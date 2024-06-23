@@ -10,7 +10,7 @@ use crate::power_system::{DeltaU, PowerSystem, U};
 
 use super::{
     steady_state_adapter::SteadyStateContri,
-    transient_adapter::{TransientContri, TransientError, TransientResults},
+    transient_adapter::{TransientContri, TransientError, TransientSolution},
 };
 
 pub type HeapNode = Rc<RefCell<AStarNode>>;
@@ -158,6 +158,7 @@ impl AStarNode {
         contri.contri.iter().for_each(|con| {
             assert!(con.contri_type == ContributionType::SteadyState);
             self.contribution.push(con.clone());
+            self.objective += con.amount;
         });
 
         self.steady_state_contri = Some(contri);
@@ -170,6 +171,7 @@ impl AStarNode {
         contris.contri.iter().for_each(|con| {
             assert!(con.contri_type == ContributionType::Transient);
             self.contribution.push(con.clone());
+            self.objective += con.amount;
         });
 
         self.transient_contri = Some(contris);
